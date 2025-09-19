@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Generar imagen · {{ subcategory.name }}{% endblock %}
+
+{% block content %}
+<h2 class="mb-3">Generar imagen · <span class="text-primary">{{ subcategory.name }}</span></h2>
+
+<form method="post" enctype="multipart/form-data" class="vstack gap-3">
+  {% csrf_token %}
+
+  <div>
+    <label class="form-label">Tu foto del producto</label>
+    <input class="form-control" type="file" name="product_photo" accept="image/*" required>
+  </div>
+
+  <div>
+    <label class="form-label">Estilo / Prompt</label>
+    <select id="promptSelect" class="form-select" name="master_prompt" required>
+      {% for p in prompts %}
+        <option value="{{ p.id }}">{{ p.reference_name|default:p.id }}</option>
+      {% endfor %}
+    </select>
+    <small class="text-secondary">Debajo verás la <strong>foto de referencia</strong> de este estilo (si existe).</small>
+  </div>
+
+  <!-- Previsualización de la referencia -->
+  <div id="refBox" class="mt-2" style="display:none;">
+    <img id="refImg" src="" alt="Referencia" class="img-fluid rounded border">
+  </div>
+
+  <div class="mt-3">
+    <button class="btn btn-primary" type="submit">Generar imagen</button>
+    <a class="btn btn-outline-secondary" href="javascript:history.back()">Cancelar</a>
+  </div>
+</form>
+
+<!-- Pasamos el mapa id->url de la foto de referencia -->
+{{ prompt_previews|json_script:"previews-data" }}
+<script>
+  (function(){
+    const dataEl = document.getElementById('previews-data');
+    const previews = dataEl ? JSON.parse(dataEl.textContent) : {};
+    const sel = document.getElementById('promptSelect');
+    const box = document.getElementById('refBox');
+    const img = document.getElementById('refImg');
+
+    function updatePreview(){
+      const url = previews[sel.value] || "";
+      if(url){
+        img.src = url;
+        box.style.display = '';
+      } else {
+        img.removeAttribute('src');
+        box.style.display = 'none';
+      }
+    }
+    sel.addEventListener('change', updatePreview);
+    updatePreview(); // inicial
+  })();
+</script>
+{% endblock %}

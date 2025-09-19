@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Categorías{% endblock %}
+{% block content %}
+  <h2 class="mb-3">Categorías</h2>
+  <div class="row g-3">
+    {% for c in categories %}
+  <div class="col-md-6">
+    <div class="card h-100">
+      {% if c.image %}
+        <img src="{{ c.image.url }}" class="card-img-top" alt="{{ c.name }}">
+      {% else %}
+        <img src="https://via.placeholder.com/800x400?text={{ c.name|urlencode }}" class="card-img-top" alt="{{ c.name }}">
+      {% endif %}
+
+      <div class="card-body">
+        <h5 class="card-title">{{ c.name }}</h5>
+        <a class="btn btn-primary" href="{% url 'subcategories' c.name %}">Ver subcategorías</a>
+      </div>
+    </div>
+  </div>
+{% endfor %}
+
+  </div>
+{% endblock %}

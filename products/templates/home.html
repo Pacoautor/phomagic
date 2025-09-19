@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}Inicio - AI Photo Shop{% endblock %}
+
+{% block content %}
+<div class="text-center">
+    <h1 class="mb-4">Bienvenido a AI Photo Shop</h1>
+    <p class="lead">Explora las categorías, genera imágenes con IA y disfruta.</p>
+
+    {% if user.is_authenticated %}
+        <p class="text-success">Ya estás conectado como <strong>{{ user.username }}</strong>.</p>
+    {% else %}
+        <p class="text-info">Inicia sesión o regístrate para comenzar.</p>
+        <a href="{% url 'account_login' %}" class="btn btn-primary">Entrar</a>
+        <a href="{% url 'account_signup' %}" class="btn btn-success">Registrarse</a>
+    {% endif %}
+</div>
+{% endblock %}

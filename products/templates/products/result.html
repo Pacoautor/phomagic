@@ -1,0 +1,24 @@
+{% extends "base.html" %} 
+{% block title %}Resultado{% endblock %}
+
+{% block content %}
+<h2>Resultado</h2>
+
+<div class="row">
+  {% for size, url in urls.items %}
+    <div class="col-sm-4 mb-3">
+      <div class="card h-100">
+        <div class="d-flex justify-content-center align-items-center" style="background:#fff; aspect-ratio: 1/1;">
+          <img src="{{ url }}" class="img-fluid" style="object-fit: contain; max-height:100%; max-width:100%;" alt="Resultado {{ size }}">
+        </div>
+        <div class="card-body text-center">
+          <h5 class="card-title">{{ size }}</h5>
+          <a class="btn btn-primary" href="{{ url }}" download>Descargar {{ size }}</a>
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+
+<a class="btn btn-secondary mt-3" href="javascript:history.back()">Volver</a>
+{% endblock %}
