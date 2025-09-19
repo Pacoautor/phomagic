@@ -9,7 +9,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-me")
 DEBUG = os.getenv("DEBUG", "False") == "True"
 
 # Hosts permitidos desde variable de entorno
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost,phomagic-web.onrender.com").split(",")
 
 # --- APPS ---
 INSTALLED_APPS = [
@@ -94,4 +94,4 @@ LOGIN_REDIRECT_URL = "/"   # dónde ir tras login
 LOGOUT_REDIRECT_URL = "/"  # dónde ir tras logout
 
 # --- CSRF Trusted Origins ---
-CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",")
+CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", "https://phomagic-web.onrender.com").split(",")
