@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Vistas de {{ subcategory.name }}{% endblock %}
+
+{% block content %}
+<h2>Elige una vista para: {{ subcategory.name }}</h2>
+
+<div class="row">
+  {% for v in views %}
+    <div class="col-md-4 mb-3">
+      <div class="card h-100">
+        {% if v.image %}
+          <img src="{{ v.image.url }}" class="card-img-top" alt="{{ v.name }}">
+        {% endif %}
+        <div class="card-body">
+          <h5 class="card-title">{{ v.name }}</h5>
+          <a class="btn btn-primary" href="{% url 'generate_photo' subcategory.id v.id %}">Usar esta vista</a>
+        </div>
+      </div>
+    </div>
+  {% empty %}
+    <p>No hay vistas definidas para esta subcategoría.</p>
+  {% endfor %}
+</div>
+
+<a class="btn btn-secondary" href="javascript:history.back()">Volver</a>
+{% endblock %}
