@@ -133,6 +133,5 @@ def signup_view(request):
             return redirect("login")
     else:
         form = UserCreationForm()
-    return render(request, "registration/signup.html", {"form": form})    else:
-        form = UserCreationForm()
-    return render(request, "registration/signup.html", {"form": form})
+    return render(request, "registration/signup.html", {"form": form})   
+       
