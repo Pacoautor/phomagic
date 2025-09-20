@@ -122,13 +122,17 @@ def generate_photo(request, subcategory_id, view_id):
     })
 from django.contrib.auth.forms import UserCreationForm
 from django.shortcuts import render, redirect
+from django.contrib import messages
 
 def signup_view(request):
     if request.method == "POST":
         form = UserCreationForm(request.POST)
         if form.is_valid():
             form.save()
-            return redirect("login")  # tras registro, va al login
+            messages.success(request, "Cuenta creada. Ya puedes iniciar sesión.")
+            return redirect("login")
     else:
+        form = UserCreationForm()
+    return render(request, "registration/signup.html", {"form": form})    else:
         form = UserCreationForm()
     return render(request, "registration/signup.html", {"form": form})
