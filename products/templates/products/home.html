@@ -1,24 +1,30 @@
+<style>
+  .card.bg-dark .card-title,
+  .card.bg-dark .card-text {
+    color:#f1f1f1;
+  }
+</style>
+
 {% extends "base.html" %}
-{% block title %}Categorías{% endblock %}
 {% block content %}
+<div class="container my-4">
   <h2 class="mb-3">Categorías</h2>
   <div class="row g-3">
     {% for c in categories %}
-  <div class="col-md-6">
-    <div class="card h-100">
-      {% if c.image %}
-        <img src="{{ c.image.url }}" class="card-img-top" alt="{{ c.name }}">
-      {% else %}
-        <img src="https://via.placeholder.com/800x400?text={{ c.name|urlencode }}" class="card-img-top" alt="{{ c.name }}">
-      {% endif %}
-
-      <div class="card-body">
-        <h5 class="card-title">{{ c.name }}</h5>
-        <a class="btn btn-primary" href="{% url 'subcategories' c.name %}">Ver subcategorías</a>
+      <div class="col-12 col-sm-6">
+        <div class="card h-100 bg-dark text-light border-0 shadow-sm">
+          {% if c.image %}
+            <img src="{{ c.image.url }}" class="card-img-top" alt="{{ c.name }}">
+          {% else %}
+            <img src="https://via.placeholder.com/1200x400?text={{ c.name|urlencode }}" class="card-img-top" alt="{{ c.name }}">
+          {% endif %}
+          <div class="card-body">
+            <h5 class="card-title">{{ c.name|upper }}</h5>
+            <a href="{% url 'subcategories' c.name %}" class="btn btn-primary">Ver subcategorías</a>
+          </div>
+        </div>
       </div>
-    </div>
+    {% endfor %}
   </div>
-{% endfor %}
-
-  </div>
+</div>
 {% endblock %}
