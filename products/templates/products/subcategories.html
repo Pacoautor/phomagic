@@ -1,9 +1,4 @@
-{% extends "base.html" %}
-{% block title %}{{ category.name }}{% endblock %}
-{% block content %}
-  <h2 class="mb-3">{{ category.name }}</h2>
-  <div class="row g-3">
-    {% for s in subcategories %}
+{% for s in subcategories %}
   <div class="col-md-6">
     <div class="card h-100">
       {% if s.image %}
@@ -11,15 +6,10 @@
       {% else %}
         <img src="https://via.placeholder.com/800x400?text={{ s.name|urlencode }}" class="card-img-top" alt="{{ s.name }}">
       {% endif %}
-
       <div class="card-body">
         <h5 class="card-title">{{ s.name }}</h5>
-        <a class="btn btn-primary" href="{% url 'view_options' sub.id %}">Elegir vista</a>
-
+        <a class="btn btn-primary" href="{% url 'view_options' s.id %}">Elegir vista</a>
       </div>
     </div>
   </div>
 {% endfor %}
-
-  </div>
-{% endblock %}
