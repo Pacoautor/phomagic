@@ -1,15 +1,29 @@
-{% for s in subcategories %}
-  <div class="col-md-6">
-    <div class="card h-100">
-      {% if s.image %}
-        <img src="{{ s.image.url }}" class="card-img-top" alt="{{ s.name }}">
-      {% else %}
-        <img src="https://via.placeholder.com/800x400?text={{ s.name|urlencode }}" class="card-img-top" alt="{{ s.name }}">
-      {% endif %}
-      <div class="card-body">
-        <h5 class="card-title">{{ s.name }}</h5>
-        <a class="btn btn-primary" href="{% url 'view_options' s.id %}">Elegir vista</a>
+{% extends "base.html" %}
+{% block content %}
+<div class="container my-4">
+  <h2 class="mb-3">{{ category.name|upper }}</h2>
+
+  <div class="row g-3">
+    {% for s in subcategories %}
+    <div class="col-12 col-sm-6 col-lg-4">
+      <div class="card h-100 bg-dark text-light border-0 shadow-sm">
+        {% if s.image %}
+          <img src="{{ s.image.url }}" class="card-img-top" alt="{{ s.name }}">
+        {% else %}
+          <img src="https://via.placeholder.com/800x400?text={{ s.name|urlencode }}" class="card-img-top" alt="{{ s.name }}">
+        {% endif %}
+        <div class="card-body">
+          <h5 class="card-title">{{ s.name }}</h5>
+          <a class="btn btn-primary w-100" href="{% url 'view_options' s.id %}">Elegir vista</a>
+        </div>
       </div>
     </div>
+    {% empty %}
+      <div class="col-12">
+        <div class="alert alert-info">No hay subcategorías.</div>
+      </div>
+    {% endfor %}
   </div>
-{% endfor %}
+</div>
+{% endblock %}
+

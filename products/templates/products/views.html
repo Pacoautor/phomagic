@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container my-4">
+  <h2 class="mb-3">Elige vista</h2>
+
+  {% if view_options %}
+    <div class="row g-3">
+      {% for v in view_options %}
+      <div class="col-12 col-sm-6 col-lg-4">
+        <div class="card h-100 bg-dark text-light border-0 shadow-sm">
+          {% if v.image %}
+            <img src="{{ v.image.url }}" class="card-img-top" alt="{{ v.name }}">
+          {% endif %}
+          <div class="card-body">
+            <h5 class="card-title">{{ v.name }}</h5>
+            <p class="card-text small mb-3">{{ v.description|default:"" }}</p>
+            <a href="{% url 'generate_photo' subcategory_id v.id %}" class="btn btn-primary w-100">
+              Usar esta vista
+            </a>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="alert alert-warning">No hay vistas configuradas para esta subcategoría.</div>
+  {% endif %}
+</div>
+{% endblock %}
