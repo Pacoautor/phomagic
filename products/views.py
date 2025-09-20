@@ -120,18 +120,21 @@ def generate_photo(request, subcategory_id, view_id):
         "prompts": prompts,
         "prompt_previews": prompt_previews,
     })
-from django.contrib.auth.forms import UserCreationForm
 from django.shortcuts import render, redirect
 from django.contrib import messages
+from django.contrib.auth import login, authenticate
+from .forms import CustomUserCreationForm
 
 def signup_view(request):
     if request.method == "POST":
-        form = UserCreationForm(request.POST)
+        form = CustomUserCreationForm(request.POST)
         if form.is_valid():
             form.save()
-            messages.success(request, "Cuenta creada. Ya puedes iniciar sesión.")
+            messages.success(request, "Cuenta creada con éxito. Ahora puedes iniciar sesión.")
             return redirect("login")
     else:
-        form = UserCreationForm()
-    return render(request, "registration/signup.html", {"form": form})   
+        form = CustomUserCreationForm()
+
+    return render(request, "registration/signup.html", {"form": form})
+   
        
