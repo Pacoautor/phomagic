@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-5 text-center">
+  <h1>Sesión cerrada</h1>
+  <p>Has cerrado sesión correctamente.</p>
+  <a class="btn btn-primary mt-3" href="/">Volver al inicio</a>
+</div>
+{% endblock %}
+
+# photopro_app/urls.py
+from django.contrib import admin
+from django.urls import path, include
+from django.contrib.auth import views as auth_views
+from django.contrib.auth import logout
+from django.shortcuts import redirect
+
+def logout_view(request):
+    logout(request)
+    return redirect("login")  # tras cerrar sesión, va al login
+
+urlpatterns = [
+    path("admin/", admin.site.urls),
+    path("", include("products.urls")),  # tus urls de la app
+    path("login/", auth_views.LoginView.as_view(template_name="registration/login.html"), name="login"),
+    path("logout/", logout_view, name="logout"),
+]
+

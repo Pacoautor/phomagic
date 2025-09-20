@@ -1,3 +1,7 @@
+LOGIN_URL = '/login/'
+LOGIN_REDIRECT_URL = '/'     # A dónde va tras iniciar sesión
+
+
 import os
 from pathlib import Path
 

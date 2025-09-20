@@ -117,3 +117,11 @@ LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+LOGIN_URL = "login"
+LOGIN_REDIRECT_URL = "home"   # cambia si tu vista de inicio se llama distinto
+LOGOUT_REDIRECT_URL = "login"
+
+LOGIN_URL = '/login/'
+LOGIN_REDIRECT_URL = '/'     # A dónde va tras iniciar sesión
+

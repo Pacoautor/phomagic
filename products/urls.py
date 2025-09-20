@@ -1,3 +1,10 @@
+from .views import signup_view
+
+urlpatterns = [
+    # ... tus rutas actuales ...
+    path("signup/", signup_view, name="signup"),
+]
+
 # products/urls.py
 from django.urls import path
 from . import views
