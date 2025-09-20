@@ -2,6 +2,31 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+  <!-- Google Font: Coiny -->
+<link href="https://fonts.googleapis.com/css2?family=Coiny&display=swap" rel="stylesheet">
+
+<style>
+  .navbar-brand.phomagic {
+    font-family: "Coiny", system-ui, cursive;
+    color: #fff !important;
+    font-size: 28px;
+    letter-spacing: 1px;
+  }
+  /* Centrar contenido dentro de la barra */
+  .navbar .container,
+  .navbar .container-fluid {
+    display: flex;
+    justify-content: center;
+  }
+  /* Evitar que los enlaces de la derecha desplacen el título */
+  .navbar .right-actions {
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+</style>
+	
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}AI Photo Shop{% endblock %}</title>
@@ -13,29 +38,22 @@
 </head>
 <body>
   <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-    <div class="container-fluid">
-      <a class="navbar-brand" href="/">AI Photo Shop</a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="nav">
-        <ul class="navbar-nav ms-auto">
-          {% if user.is_authenticated %}
-            <li class="nav-item">
-              <span class="nav-link">Hola, {{ user.username }}</span>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'logout' %}">Cerrar sesión</a>
-            </li>
-          {% else %}
-            <li class="nav-item">
-              <a class="nav-link" href="{% url 'login' %}">Iniciar sesión</a>
-            </li>
-          {% endif %}
-        </ul>
-      </div>
+  <div class="container position-relative">
+    <!-- Marca centrada -->
+    <a class="navbar-brand phomagic mx-auto" href="/">PHOMAGIC</a>
+
+    <!-- Acciones derecha (login/logout) -->
+    <div class="right-actions">
+      {% if user.is_authenticated %}
+        <span class="me-3">Hola, {{ user.username }}</span>
+        <a class="btn btn-sm btn-outline-light" href="{% url 'logout' %}">Cerrar sesión</a>
+      {% else %}
+        <a class="btn btn-sm btn-outline-light me-2" href="{% url 'login' %}">Iniciar sesión</a>
+      {% endif %}
     </div>
-  </nav>
+  </div>
+</nav>
+
 
   <div class="container mt-4">
     {% if messages %}
