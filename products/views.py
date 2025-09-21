@@ -1,4 +1,26 @@
 # products/views.py
+
+from django.shortcuts import render, get_object_or_404
+from .models import Subcategory, ViewOption
+
+def view_options(request, subcategory_id):
+    subcategory = get_object_or_404(Subcategory, id=subcategory_id)
+    # Si tus ViewOption están asociadas a Subcategory, filtra por ella:
+    try:
+        options = ViewOption.objects.filter(subcategories=subcategory, is_active=True)
+    except Exception:
+        # Si no hay relación M2M/FK, al menos devuelve todas las activas
+        options = ViewOption.objects.filter(is_active=True)
+
+    return render(
+        request,
+        "products/views.html",
+        {
+            "subcategory": subcategory,
+            "view_options": options,
+        },
+    )
+
 from django.shortcuts import render, get_object_or_404
 from django.http import HttpResponse
 from django.conf import settings
