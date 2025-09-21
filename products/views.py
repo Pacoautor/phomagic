@@ -1,45 +1,53 @@
-# products/views.py
-
 import os, base64, requests
 from io import BytesIO
 from PIL import Image
+
 from django.conf import settings
 from django.http import HttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
-from django.contrib.auth import login, authenticate
 
 from .models import Category, Subcategory, ViewOption, MasterPrompt
 from .forms import CustomUserCreationForm
 
-# ---------- Home y navegación ----------
+
+# ----- Listado principal -----
 def home(request):
     categories = Category.objects.all()
     return render(request, "products/home.html", {"categories": categories})
 
+
 def subcategories(request, category_name):
     category = get_object_or_404(Category, name=category_name)
-    subs = Subcategory.objects.filter(category=category)
+    subs = Subcategory.objects.filter(category=category).order_by("name")
     return render(
         request,
         "products/subcategories.html",
         {"category": category, "subcategories": subs},
     )
 
+
 def view_options(request, subcategory_id):
-    """Lista las 'Vistas' (frontal, lateral, etc.) de una subcategoría."""
+    """
+    Lista de Vistas (frontal, lateral, etc.) para la subcategoría.
+    IMPORTANT: la plantilla espera la variable 'view_list'.
+    """
     subcategory = get_object_or_404(Subcategory, id=subcategory_id)
-    view_list = ViewOption.objects.filter(subcategory=subcategory).order_by("name")
+    view_list = ViewOption.objects.filter(subcategory_id=subcategory_id).order_by("name")
     return render(
         request,
         "products/views.html",
         {"subcategory": subcategory, "view_list": view_list},
     )
-# ---------- Helpers OpenAI ----------
+
+
+# ----- Helpers OpenAI -----
 def _openai_image_edit_via_rest(prompt: str, django_uploaded_file, size: str):
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("Falta OPENAI_API_KEY.")
+
+    # aseguramos puntero al inicio
     try:
         django_uploaded_file.seek(0)
     except Exception:
@@ -61,16 +69,19 @@ def _openai_image_edit_via_rest(prompt: str, django_uploaded_file, size: str):
     b64 = j["data"][0]["b64_json"]
     return base64.b64decode(b64)
 
+
 def _save_and_optionally_downscale(image_bytes: bytes, base_name: str, chosen_size: str):
     os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
     url_map = {}
 
+    # original (la que pedimos a OpenAI)
     main_filename = f"{base_name}_{chosen_size}.png"
     main_path = os.path.join(settings.MEDIA_ROOT, main_filename)
     with open(main_path, "wb") as f:
         f.write(image_bytes)
     url_map[chosen_size] = settings.MEDIA_URL + main_filename
 
+    # derivados más pequeños
     for sz in ["512x512", "256x256"]:
         w, h = map(int, sz.split("x"))
         with Image.open(BytesIO(image_bytes)) as img:
@@ -82,15 +93,18 @@ def _save_and_optionally_downscale(image_bytes: bytes, base_name: str, chosen_si
 
     return url_map
 
-# ---------- Generación ----------
+
+# ----- Generación -----
 def generate_photo(request, subcategory_id, view_id):
     subcategory = get_object_or_404(Subcategory, id=subcategory_id)
-    viewopt = get_object_or_404(ViewOption, id=view_id, subcategory=subcategory)
+    viewopt = get_object_or_404(ViewOption, id=view_id, subcategory_id=subcategory_id)
 
-    prompts = MasterPrompt.objects.filter(subcategory=subcategory, view=viewopt)
+    # prompts preferentemente filtrados por vista; si no hay, por subcategoría sin vista
+    prompts = MasterPrompt.objects.filter(subcategory_id=subcategory_id, view_id=view_id)
     if not prompts.exists():
-        prompts = MasterPrompt.objects.filter(subcategory=subcategory, view__isnull=True)
+        prompts = MasterPrompt.objects.filter(subcategory_id=subcategory_id, view__isnull=True)
 
+    # miniaturas de referencia (si existen)
     prompt_previews = {}
     for p in prompts:
         try:
@@ -127,7 +141,8 @@ def generate_photo(request, subcategory_id, view_id):
         {"subcategory": subcategory, "viewopt": viewopt, "prompts": prompts, "prompt_previews": prompt_previews},
     )
 
-# ---------- Registro ----------
+
+# ----- Registro (por si lo usas aquí) -----
 def signup_view(request):
     if request.method == "POST":
         form = CustomUserCreationForm(request.POST)
