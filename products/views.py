@@ -29,13 +29,12 @@ def subcategories(request, category_name):
 def view_options(request, subcategory_id):
     """Lista las 'Vistas' (frontal, lateral, etc.) de una subcategoría."""
     subcategory = get_object_or_404(Subcategory, id=subcategory_id)
-    views = ViewOption.objects.filter(subcategory=subcategory).order_by("name")
+    view_list = ViewOption.objects.filter(subcategory=subcategory).order_by("name")
     return render(
         request,
         "products/views.html",
-        {"subcategory": subcategory, "views": views},
+        {"subcategory": subcategory, "view_list": view_list},
     )
-
 # ---------- Helpers OpenAI ----------
 def _openai_image_edit_via_rest(prompt: str, django_uploaded_file, size: str):
     api_key = os.getenv("OPENAI_API_KEY")
