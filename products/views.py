@@ -1,38 +1,18 @@
 # products/views.py
 
-from django.shortcuts import render, get_object_or_404
-from .models import Subcategory, ViewOption
-
-def view_options(request, subcategory_id):
-    subcategory = get_object_or_404(Subcategory, id=subcategory_id)
-    # Si tus ViewOption están asociadas a Subcategory, filtra por ella:
-    try:
-        options = ViewOption.objects.filter(subcategories=subcategory, is_active=True)
-    except Exception:
-        # Si no hay relación M2M/FK, al menos devuelve todas las activas
-        options = ViewOption.objects.filter(is_active=True)
-
-    return render(
-        request,
-        "products/views.html",
-        {
-            "subcategory": subcategory,
-            "view_options": options,
-        },
-    )
-
-from django.shortcuts import render, get_object_or_404
-from django.http import HttpResponse
-from django.conf import settings
-from .models import Category, Subcategory, ViewOption, MasterPrompt
-
 import os, base64, requests
 from io import BytesIO
-from PIL import Image, ImageOps
+from PIL import Image
+from django.conf import settings
+from django.http import HttpResponse
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib import messages
+from django.contrib.auth import login, authenticate
 
-from openai import OpenAI
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+from .models import Category, Subcategory, ViewOption, MasterPrompt
+from .forms import CustomUserCreationForm
 
+# ---------- Home y navegación ----------
 def home(request):
     categories = Category.objects.all()
     return render(request, "products/home.html", {"categories": categories})
@@ -40,20 +20,23 @@ def home(request):
 def subcategories(request, category_name):
     category = get_object_or_404(Category, name=category_name)
     subs = Subcategory.objects.filter(category=category)
-    return render(request, "products/subcategories.html", {
-        "category": category,
-        "subcategories": subs
-    })
+    return render(
+        request,
+        "products/subcategories.html",
+        {"category": category, "subcategories": subs},
+    )
 
 def view_options(request, subcategory_id):
+    """Lista las 'Vistas' (frontal, lateral, etc.) de una subcategoría."""
     subcategory = get_object_or_404(Subcategory, id=subcategory_id)
     views = ViewOption.objects.filter(subcategory=subcategory).order_by("name")
-    return render(request, "products/views.html", {
-        "subcategory": subcategory,
-        "views": views
-    })
+    return render(
+        request,
+        "products/views.html",
+        {"subcategory": subcategory, "views": views},
+    )
 
-# ---- Helpers OpenAI (los mismos que ya usas) ----
+# ---------- Helpers OpenAI ----------
 def _openai_image_edit_via_rest(prompt: str, django_uploaded_file, size: str):
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -62,6 +45,7 @@ def _openai_image_edit_via_rest(prompt: str, django_uploaded_file, size: str):
         django_uploaded_file.seek(0)
     except Exception:
         pass
+
     url = "https://api.openai.com/v1/images/edits"
     headers = {"Authorization": f"Bearer {api_key}"}
     files = {
@@ -71,7 +55,7 @@ def _openai_image_edit_via_rest(prompt: str, django_uploaded_file, size: str):
             getattr(django_uploaded_file, "content_type", None) or "application/octet-stream",
         ),
     }
-    data = {"model": "gpt-image-1", "prompt": prompt, "size": "1024x1024", "n": 1}
+    data = {"model": "gpt-image-1", "prompt": prompt, "size": size, "n": 1}
     r = requests.post(url, headers=headers, files=files, data=data, timeout=300)
     r.raise_for_status()
     j = r.json()
@@ -81,32 +65,33 @@ def _openai_image_edit_via_rest(prompt: str, django_uploaded_file, size: str):
 def _save_and_optionally_downscale(image_bytes: bytes, base_name: str, chosen_size: str):
     os.makedirs(settings.MEDIA_ROOT, exist_ok=True)
     url_map = {}
+
     main_filename = f"{base_name}_{chosen_size}.png"
     main_path = os.path.join(settings.MEDIA_ROOT, main_filename)
     with open(main_path, "wb") as f:
         f.write(image_bytes)
     url_map[chosen_size] = settings.MEDIA_URL + main_filename
-    downsizes = ["512x512", "256x256"]
-    with Image.open(BytesIO(image_bytes)) as img:
-        for sz in downsizes:
-            w, h = map(int, sz.split("x"))
+
+    for sz in ["512x512", "256x256"]:
+        w, h = map(int, sz.split("x"))
+        with Image.open(BytesIO(image_bytes)) as img:
             resized = img.resize((w, h), resample=Image.LANCZOS)
             fn = f"{base_name}_{sz}.png"
             p = os.path.join(settings.MEDIA_ROOT, fn)
             resized.save(p)
             url_map[sz] = settings.MEDIA_URL + fn
+
     return url_map
 
+# ---------- Generación ----------
 def generate_photo(request, subcategory_id, view_id):
     subcategory = get_object_or_404(Subcategory, id=subcategory_id)
     viewopt = get_object_or_404(ViewOption, id=view_id, subcategory=subcategory)
 
-    # Prompts filtrados por Vista (si no hay, caerá a los que no tienen vista)
     prompts = MasterPrompt.objects.filter(subcategory=subcategory, view=viewopt)
     if not prompts.exists():
         prompts = MasterPrompt.objects.filter(subcategory=subcategory, view__isnull=True)
 
-    # Previews de referencia
     prompt_previews = {}
     for p in prompts:
         try:
@@ -125,28 +110,25 @@ def generate_photo(request, subcategory_id, view_id):
                 url_map = _save_and_optionally_downscale(
                     image_bytes, f"result_{subcategory_id}_{view_id}", "1024x1024"
                 )
-                return render(request, "products/result.html", {
-                    "subcategory": subcategory,
-                    "viewopt": viewopt,
-                    "prompt": final_prompt,
-                    "urls": url_map,
-                })
+                return render(
+                    request,
+                    "products/result.html",
+                    {"subcategory": subcategory, "viewopt": viewopt, "prompt": final_prompt, "urls": url_map},
+                )
             except requests.HTTPError as http_err:
-                return HttpResponse(f"Error HTTP de OpenAI: {http_err.response.status_code} – {http_err.response.text}")
+                return HttpResponse(
+                    f"Error HTTP de OpenAI: {http_err.response.status_code} – {http_err.response.text}"
+                )
             except Exception as e:
                 return HttpResponse(f"¡Ha ocurrido un error en la API de OpenAI! Error: {e}")
 
-    return render(request, "products/generate_photo.html", {
-        "subcategory": subcategory,
-        "viewopt": viewopt,
-        "prompts": prompts,
-        "prompt_previews": prompt_previews,
-    })
-from django.shortcuts import render, redirect
-from django.contrib import messages
-from django.contrib.auth import login, authenticate
-from .forms import CustomUserCreationForm
+    return render(
+        request,
+        "products/generate_photo.html",
+        {"subcategory": subcategory, "viewopt": viewopt, "prompts": prompts, "prompt_previews": prompt_previews},
+    )
 
+# ---------- Registro ----------
 def signup_view(request):
     if request.method == "POST":
         form = CustomUserCreationForm(request.POST)
@@ -156,7 +138,4 @@ def signup_view(request):
             return redirect("login")
     else:
         form = CustomUserCreationForm()
-
     return render(request, "registration/signup.html", {"form": form})
-   
-       
