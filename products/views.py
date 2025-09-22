@@ -123,10 +123,24 @@ def generate_photo(request, subcategory_id, view_id):
                 url_map = _save_and_optionally_downscale(
                     image_bytes, f"result_{subcategory_id}_{view_id}", "1024x1024"
                 )
+
+                # 🔑 Añadimos alias para que el template no falle
+                safe_urls = {
+                    "image_1024": url_map.get("1024x1024"),
+                    "image_512": url_map.get("512x512"),
+                    "image_256": url_map.get("256x256"),
+                    **url_map,
+                }
+
                 return render(
                     request,
                     "products/result.html",
-                    {"subcategory": subcategory, "viewopt": viewopt, "prompt": final_prompt, "urls": url_map},
+                    {
+                        "subcategory": subcategory,
+                        "viewopt": viewopt,
+                        "prompt": final_prompt,
+                        "urls": safe_urls,
+                    },
                 )
             except requests.HTTPError as http_err:
                 return HttpResponse(
@@ -140,7 +154,6 @@ def generate_photo(request, subcategory_id, view_id):
         "products/generate_photo.html",
         {"subcategory": subcategory, "viewopt": viewopt, "prompts": prompts, "prompt_previews": prompt_previews},
     )
-
 
 # ----- Registro (por si lo usas aquí) -----
 def signup_view(request):
