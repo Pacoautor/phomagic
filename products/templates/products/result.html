@@ -1,24 +1,92 @@
-{% extends "base.html" %} 
+{% extends "base.html" %}
+{% load static %}
+
 {% block title %}Resultado{% endblock %}
 
 {% block content %}
-<h2>Resultado</h2>
+<style>
+  /* Tarjetas oscuras, fondo sitio */
+  body { background:#1e1f22; color:#e8e8e8; }
+  .card { background:#2a2b2e; border:1px solid #3a3b3e; }
 
-<div class="row">
-  {% for size, url in urls.items %}
-    <div class="col-sm-4 mb-3">
-      <div class="card h-100">
-        <div class="d-flex justify-content-center align-items-center" style="background:#fff; aspect-ratio: 1/1;">
-          <img src="{{ url }}" class="img-fluid" style="object-fit: contain; max-height:100%; max-width:100%;" alt="Resultado {{ size }}">
+  /* Marco que mantiene proporción y NO recorta la imagen */
+  .img-frame {
+    width: 100%;
+    aspect-ratio: 1 / 1;           /* cuadrado */
+    background: #fff;               /* lienzo blanco */
+    border-radius: .5rem;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;                  /* margen interno para que no “pegue” */
+  }
+  .img-frame img {
+    max-width: 100%;
+    max-height: 100%;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;            /* ¡la clave! no recorta */
+    object-position: center;
+    display: block;
+  }
+
+  .size-label {
+    color:#9aa0a6;
+    font-size: .9rem;
+    text-align:center;
+    margin-top:.25rem;
+  }
+</style>
+
+<h2 class="mb-4">Resultado</h2>
+
+<div class="row g-4">
+  <!-- 1024 -->
+  <div class="col-12 col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="img-frame">
+          <img src="{{ img_1024_url }}" alt="Resultado 1024">
         </div>
-        <div class="card-body text-center">
-          <h5 class="card-title">{{ size }}</h5>
-          <a class="btn btn-primary" href="{{ url }}" download>Descargar {{ size }}</a>
-        </div>
+        <div class="size-label">1024x1024</div>
+      </div>
+      <div class="card-footer bg-transparent border-0">
+        <a class="btn btn-primary w-100" href="{{ img_1024_url }}" download>Descargar 1024x1024</a>
       </div>
     </div>
-  {% endfor %}
+  </div>
+
+  <!-- 512 -->
+  <div class="col-12 col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="img-frame">
+          <img src="{{ img_512_url }}" alt="Resultado 512">
+        </div>
+        <div class="size-label">512x512</div>
+      </div>
+      <div class="card-footer bg-transparent border-0">
+        <a class="btn btn-primary w-100" href="{{ img_512_url }}" download>Descargar 512x512</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- 256 -->
+  <div class="col-12 col-md-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="img-frame">
+          <img src="{{ img_256_url }}" alt="Resultado 256">
+        </div>
+        <div class="size-label">256x256</div>
+      </div>
+      <div class="card-footer bg-transparent border-0">
+        <a class="btn btn-primary w-100" href="{{ img_256_url }}" download>Descargar 256x256</a>
+      </div>
+    </div>
+  </div>
 </div>
 
-<a class="btn btn-secondary mt-3" href="javascript:history.back()">Volver</a>
+<a href="{{ back_url|default:'/' }}" class="btn btn-secondary mt-4">Volver</a>
 {% endblock %}
