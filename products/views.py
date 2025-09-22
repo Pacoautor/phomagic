@@ -1,3 +1,4 @@
+# products/views.py
 import os, base64, requests
 from io import BytesIO
 from PIL import Image
@@ -170,7 +171,9 @@ def generate_photo(request, subcategory_id, view_id):
                 "subcategory": subcategory,
                 "viewopt": viewopt,
                 "prompt": final_prompt,
-                "urls": safe_urls,
+                "image_1024": safe_urls["image_1024"],
+                "image_512": safe_urls["image_512"],
+                "image_256": safe_urls["image_256"],
                 "error_msg": error_msg,
             },
         )

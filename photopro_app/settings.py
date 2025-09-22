@@ -1,4 +1,4 @@
-# settings.py
+# photopro_app/settings.py
 from pathlib import Path
 import os
 import dj_database_url
@@ -98,7 +98,7 @@ STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 MEDIA_URL = "/media/"
-MEDIA_ROOT = os.environ.get("MEDIA_ROOT", "/var/media")  # ruta del Disco en Render
+MEDIA_ROOT = "/var/data/media/" # Ruta de ejemplo para un disco persistente
 # ========================
 # Autenticación
 # ========================
