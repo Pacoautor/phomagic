@@ -1,60 +1,90 @@
-{% extends "base.html" %}
-{% block title %}Generar imagen · {{ subcategory.name }}{% endblock %}
+def generate_photo(request, subcategory_id, view_id):
+    subcategory = get_object_or_404(Subcategory, id=subcategory_id)
+    viewopt = get_object_or_404(ViewOption, id=view_id, subcategory_id=subcategory_id)
+    
+    # Prompts preferentemente filtrados por vista; si no hay, por subcategoría sin vista
+    prompts = MasterPrompt.objects.filter(subcategory_id=subcategory_id, view_id=view_id)
+    if not prompts.exists():
+        prompts = MasterPrompt.objects.filter(subcategory_id=subcategory_id, view__isnull=True)
 
-{% block content %}
-<h2 class="mb-3">Generar imagen · <span class="text-primary">{{ subcategory.name }}</span></h2>
+    # Miniaturas de referencia (si existen)
+    prompt_previews = {}
+    for p in prompts:
+        try:
+            prompt_previews[p.id] = p.reference_photo.url if getattr(p, "reference_photo", None) else ""
+        except Exception:
+            prompt_previews[p.id] = ""
 
-<form method="post" enctype="multipart/form-data" class="vstack gap-3">
-  {% csrf_token %}
+    # Lógica de generación y renderizado
+    if request.method == "POST":
+        product_photo_file = request.FILES.get("product_photo")
+        master_prompt_id = request.POST.get("master_prompt")
+        
+        urls = {}
+        error_msg = None
+        final_prompt = ""
 
-  <div>
-    <label class="form-label">Tu foto del producto</label>
-    <input class="form-control" type="file" name="product_photo" accept="image/*" required>
-  </div>
+        if product_photo_file and master_prompt_id:
+            try:
+                mp = get_object_or_404(MasterPrompt, id=master_prompt_id)
+                final_prompt = f"{mp.prompt_text}"
+                
+                # Generación de la imagen
+                # La función _openai_image_edit_via_rest necesita el prompt y el archivo de imagen.
+                # Asegúrate de que tu modelo OpenAI sea el correcto y esté configurado para image_edits
+                # como lo muestra el código de ejemplo.
+                image_bytes = _openai_image_edit_via_rest(final_prompt, product_photo_file, "1024x1024")
+                
+                # Guardado y escalado
+                urls = _save_and_optionally_downscale(
+                    image_bytes, f"result_{subcategory_id}_{view_id}", "1024x1024"
+                )
+                
+            except requests.HTTPError as http_err:
+                error_msg = f"Error HTTP de OpenAI: {http_err.response.status_code} – {http_err.response.text}"
+            except Exception as e:
+                error_msg = f"¡Ha ocurrido un error en la API de OpenAI! Error: {e}"
 
-  <div>
-    <label class="form-label">Estilo / Prompt</label>
-    <select id="promptSelect" class="form-select" name="master_prompt" required>
-      {% for p in prompts %}
-        <option value="{{ p.id }}">{{ p.reference_name|default:p.id }}</option>
-      {% endfor %}
-    </select>
-    <small class="text-secondary">Debajo verás la <strong>foto de referencia</strong> de este estilo (si existe).</small>
-  </div>
+        # Lógica de verificación y renderizado
+        # Alias para el template, se usan en el result.html
+        safe_urls = {
+            "image_1024": urls.get("1024x1024"),
+            "image_512": urls.get("512x512"),
+            "image_256": urls.get("256x256"),
+        }
 
-  <!-- Previsualización de la referencia -->
-  <div id="refBox" class="mt-2" style="display:none;">
-    <img id="refImg" src="" alt="Referencia" class="img-fluid rounded border">
-  </div>
+        # Si hubo un error en la generación y no tenemos URLs, ponemos un mensaje genérico.
+        if not safe_urls["image_1024"] and not error_msg:
+            error_msg = (
+                "No se generó ninguna imagen. Si estás usando OpenAI, "
+                "revisa el saldo/limite de facturación y los logs del servicio."
+            )
+        
+        # Si tienes error_msg, sobrescribe las URLs a None para evitar mostrar URLs inválidas.
+        if error_msg:
+            safe_urls = {
+                "image_1024": None,
+                "image_512": None,
+                "image_256": None,
+            }
 
-  <div class="mt-3">
-    <button class="btn btn-primary" type="submit">Generar imagen</button>
-    <a class="btn btn-outline-secondary" href="javascript:history.back()">Cancelar</a>
-  </div>
-</form>
-
-<!-- Pasamos el mapa id->url de la foto de referencia -->
-{{ prompt_previews|json_script:"previews-data" }}
-<script>
-  (function(){
-    const dataEl = document.getElementById('previews-data');
-    const previews = dataEl ? JSON.parse(dataEl.textContent) : {};
-    const sel = document.getElementById('promptSelect');
-    const box = document.getElementById('refBox');
-    const img = document.getElementById('refImg');
-
-    function updatePreview(){
-      const url = previews[sel.value] || "";
-      if(url){
-        img.src = url;
-        box.style.display = '';
-      } else {
-        img.removeAttribute('src');
-        box.style.display = 'none';
-      }
-    }
-    sel.addEventListener('change', updatePreview);
-    updatePreview(); // inicial
-  })();
-</script>
-{% endblock %}
+        return render(
+            request,
+            "products/result.html",
+            {
+                "subcategory": subcategory,
+                "viewopt": viewopt,
+                "prompt": final_prompt,
+                "image_1024": safe_urls["image_1024"],
+                "image_512": safe_urls["image_512"],
+                "image_256": safe_urls["image_256"],
+                "error_msg": error_msg,
+            },
+        )
+    
+    # Renderizado del formulario inicial si es un GET
+    return render(
+        request,
+        "products/generate_photo.html",
+        {"subcategory": subcategory, "viewopt": viewopt, "prompts": prompts, "prompt_previews": prompt_previews},
+    )

@@ -1,28 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Categorías{% endblock %}
+
+{% block content %}
 <style>
-  .card.bg-dark .card-title,
-  .card.bg-dark .card-text {
-    color:#f1f1f1;
+  /* Evitar recortes en todas las imágenes listadas aquí */
+  .img-no-crop {
+    width: 100%;
+    height: auto;            /* que mande la imagen, no el contenedor */
+    object-fit: contain;     /* por si algún navegador impone altura */
+    background: #0f0f10;     /* fondo sutil detrás de PNGs */
+    border-radius: .5rem;
+    display: block;
   }
 </style>
 
-{% extends "base.html" %}
-{% block content %}
 <div class="container my-4">
   <h2 class="mb-3">Categorías</h2>
+
   <div class="row g-3">
     {% for c in categories %}
-      <div class="col-12 col-sm-6">
+      <div class="col-12 col-md-6">
         <div class="card h-100 bg-dark text-light border-0 shadow-sm">
           {% if c.image %}
-            <img src="{{ c.image.url }}" class="card-img-top" alt="{{ c.name }}">
+            <img src="{{ c.image.url }}" alt="{{ c.name }}" class="img-no-crop">
           {% else %}
-            <img src="https://via.placeholder.com/1200x400?text={{ c.name|urlencode }}" class="card-img-top" alt="{{ c.name }}">
+            <img src="https://via.placeholder.com/1200x600?text={{ c.name|urlencode }}" alt="{{ c.name }}" class="img-no-crop">
           {% endif %}
           <div class="card-body">
             <h5 class="card-title">{{ c.name|upper }}</h5>
-            <a href="{% url 'subcategories' c.name %}" class="btn btn-primary">Ver subcategorías</a>
+            <a class="btn btn-primary" href="{% url 'subcategories' c.slug|default:c.name|urlencode %}">Ver subcategorías</a>
           </div>
         </div>
+      </div>
+    {% empty %}
+      <div class="col-12">
+        <div class="alert alert-info">No hay categorías disponibles.</div>
       </div>
     {% endfor %}
   </div>

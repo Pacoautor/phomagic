@@ -6,6 +6,19 @@
 <link href="https://fonts.googleapis.com/css2?family=Coiny&display=swap" rel="stylesheet">
 
 <style>
+  /* Muestra imagen completa sin recortar dentro de una altura razonable */
+  .img-contain {
+    width: 100%;
+    height: 260px;           /* ajusta si quieres más/menos alto */
+    object-fit: contain;     /* <- clave: NO recorta */
+    background: #111;        /* fondo detrás de la imagen */
+  }
+
+  @media (min-width: 992px){ .img-contain { height: 300px; } }
+</style>
+
+
+<style>
   .navbar-brand.phomagic {
     font-family: "Coiny", system-ui, cursive;
     color: #fff !important;
