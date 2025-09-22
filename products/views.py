@@ -98,13 +98,13 @@ def _save_and_optionally_downscale(image_bytes: bytes, base_name: str, chosen_si
 def generate_photo(request, subcategory_id, view_id):
     subcategory = get_object_or_404(Subcategory, id=subcategory_id)
     viewopt = get_object_or_404(ViewOption, id=view_id, subcategory_id=subcategory_id)
-
-    # prompts preferentemente filtrados por vista; si no hay, por subcategoría sin vista
+    
+    # Prompts preferentemente filtrados por vista; si no hay, por subcategoría sin vista
     prompts = MasterPrompt.objects.filter(subcategory_id=subcategory_id, view_id=view_id)
     if not prompts.exists():
         prompts = MasterPrompt.objects.filter(subcategory_id=subcategory_id, view__isnull=True)
 
-    # miniaturas de referencia (si existen)
+    # Miniaturas de referencia (si existen)
     prompt_previews = {}
     for p in prompts:
         try:
@@ -112,48 +112,76 @@ def generate_photo(request, subcategory_id, view_id):
         except Exception:
             prompt_previews[p.id] = ""
 
+    # Lógica de generación y renderizado
     if request.method == "POST":
         product_photo_file = request.FILES.get("product_photo")
         master_prompt_id = request.POST.get("master_prompt")
+        
+        urls = {}
+        error_msg = None
+        final_prompt = ""
+
         if product_photo_file and master_prompt_id:
-            mp = get_object_or_404(MasterPrompt, id=master_prompt_id)
-            final_prompt = f"{mp.prompt_text}"
             try:
+                mp = get_object_or_404(MasterPrompt, id=master_prompt_id)
+                final_prompt = f"{mp.prompt_text}"
+                
+                # Generación de la imagen
                 image_bytes = _openai_image_edit_via_rest(final_prompt, product_photo_file, "1024x1024")
-                url_map = _save_and_optionally_downscale(
+                
+                # Guardado y escalado
+                urls = _save_and_optionally_downscale(
                     image_bytes, f"result_{subcategory_id}_{view_id}", "1024x1024"
                 )
 
-                # 🔑 Añadimos alias para que el template no falle
-                safe_urls = {
-                    "image_1024": url_map.get("1024x1024"),
-                    "image_512": url_map.get("512x512"),
-                    "image_256": url_map.get("256x256"),
-                    **url_map,
-                }
-
-                return render(
-                    request,
-                    "products/result.html",
-                    {
-                        "subcategory": subcategory,
-                        "viewopt": viewopt,
-                        "prompt": final_prompt,
-                        "urls": safe_urls,
-                    },
-                )
             except requests.HTTPError as http_err:
-                return HttpResponse(
-                    f"Error HTTP de OpenAI: {http_err.response.status_code} – {http_err.response.text}"
-                )
+                error_msg = f"Error HTTP de OpenAI: {http_err.response.status_code} – {http_err.response.text}"
             except Exception as e:
-                return HttpResponse(f"¡Ha ocurrido un error en la API de OpenAI! Error: {e}")
+                error_msg = f"¡Ha ocurrido un error en la API de OpenAI! Error: {e}"
 
+        # Lógica de verificación y renderizado (integrada de la función `generate_result`)
+        
+        # Alias para el template
+        safe_urls = {
+            "image_1024": urls.get("1024x1024"),
+            "image_512": urls.get("512x512"),
+            "image_256": urls.get("256x256"),
+        }
+
+        # Si hubo un error en la generación y no tenemos URLs, ponemos un mensaje genérico.
+        if not safe_urls["image_1024"] and not error_msg:
+            error_msg = (
+                "No se generó ninguna imagen. Si estás usando OpenAI, "
+                "revisa el saldo/limite de facturación y los logs del servicio."
+            )
+        
+        # Si tienes error_msg, sobrescribe las URLs a None para evitar mostrar URLs inválidas.
+        if error_msg:
+            safe_urls = {
+                "image_1024": None,
+                "image_512": None,
+                "image_256": None,
+            }
+
+        return render(
+            request,
+            "products/result.html",
+            {
+                "subcategory": subcategory,
+                "viewopt": viewopt,
+                "prompt": final_prompt,
+                "urls": safe_urls,
+                "error_msg": error_msg,
+            },
+        )
+    
+    # Renderizado del formulario inicial
     return render(
         request,
         "products/generate_photo.html",
         {"subcategory": subcategory, "viewopt": viewopt, "prompts": prompts, "prompt_previews": prompt_previews},
     )
+
 
 # ----- Registro (por si lo usas aquí) -----
 def signup_view(request):
