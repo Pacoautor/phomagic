@@ -98,7 +98,7 @@ STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 MEDIA_URL = "/media/"
-MEDIA_ROOT = "/var/data/media/" # Ruta de ejemplo para un disco persistente
+MEDIA_ROOT = "/opt/render/src/media"
 # ========================
 # Autenticación
 # ========================
