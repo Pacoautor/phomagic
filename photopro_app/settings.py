@@ -92,18 +92,31 @@ USE_I18N = True
 USE_TZ = True
 
 # ========================
-# Archivos estáticos y media
-# ========================
+# --- Archivos estáticos ---
 STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_ROOT = BASE_DIR / "staticfiles"     # destino de collectstatic
 
+# directorios de estáticos dentro del repo (aquí está products/static)
+STATICFILES_DIRS = [
+    BASE_DIR / "products" / "static",
+]
+
+# WhiteNoise para servir estáticos en producción
+MIDDLEWARE = [
+    "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # << debe ir justo tras SecurityMiddleware
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+]
+
+# Compresión/caché de estáticos
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+# --- Archivos de usuario (media) ---
 MEDIA_URL = "/media/"
-MEDIA_ROOT = "/opt/render/src/media"
-# ========================
-# Autenticación
-# ========================
-LOGIN_URL = "/login/"
-LOGIN_REDIRECT_URL = "/"       # tras iniciar sesión
-LOGOUT_REDIRECT_URL = "/login/"  # tras cerrar sesión
-
-DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+# IMPORTANTE: pon aquí la ruta donde montaste el Disk de Render (ej.: /opt/render/project/media)
+MEDIA_ROOT = BASE_DIR / "media"
