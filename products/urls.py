@@ -1,9 +1,30 @@
-from django.urls import path
-from . import views
+# photopro_app/urls.py
+from django.contrib import admin
+from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+
+# importamos la vista de registro que definiste en products.views
+from products.views import signup_view
+
+from django.contrib.auth import views as auth_views
+from django.contrib.auth import logout
+from django.shortcuts import redirect
+
+
+def logout_view(request):
+    logout(request)
+    return redirect("login")
+
 
 urlpatterns = [
-    path("", views.home, name="home"),
-    path("c/<str:category_name>/", views.subcategories, name="subcategories"),
-    path("v/<int:subcategory_id>/", views.view_options, name="view_options"),
-    path("g/<int:subcategory_id>/<int:view_id>/", views.generate_photo, name="generate_photo"),
+    path("admin/", admin.site.urls),
+
+    # autenticación
+    path("login/", auth_views.LoginView.as_view(template_name="registration/login.html"), name="login"),
+    path("logout/", logout_view, name="logout"),
+    path("signup/", signup_view, name="signup"),   # <- ESTA ES LA QUE FALTABA
+
+    # app principal
+    path("", include("products.urls")),
 ]
