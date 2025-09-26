@@ -14,15 +14,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-me")
 DEBUG = True
 
-ALLOWED_HOSTS = os.environ.get(
-    "ALLOWED_HOSTS",
-    "phomagic-web.onrender.com,phomagic.com,www.phomagic.com,127.0.0.1,localhost"
-).split(",")
+ALLOWED_HOSTS = [
+    "phomagic.com",
+    "www.phomagic.com",
+    "phomagic-web.onrender.com",
+    "localhost",
+    "127.0.0.1",
+]
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://phomagic-web.onrender.com",
     "https://phomagic.com",
     "https://www.phomagic.com",
+    "https://phomagic-web.onrender.com",
 ]
 
 # ========================
@@ -92,19 +95,19 @@ USE_I18N = True
 USE_TZ = True
 
 # ========================
-# --- Archivos estáticos ---
+# --- Static files ---
+import os
+from pathlib import Path
+BASE_DIR = Path(__file__).resolve().parent.parent
+
 STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"     # destino de collectstatic
+STATIC_ROOT = BASE_DIR / "staticfiles"     # para collectstatic en Render
+STATICFILES_DIRS = [ BASE_DIR / "products" / "static" ]  # tus estáticos de app
 
-# directorios de estáticos dentro del repo (aquí está products/static)
-STATICFILES_DIRS = [
-    BASE_DIR / "products" / "static",
-]
-
-# WhiteNoise para servir estáticos en producción
+# WhiteNoise
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",  # << debe ir justo tras SecurityMiddleware
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # <== tiene que ir justo detrás de SecurityMiddleware
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -113,8 +116,8 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-# Compresión/caché de estáticos
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
 
 # --- Archivos de usuario (media) ---
 MEDIA_URL = "/media/"
