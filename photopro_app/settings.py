@@ -192,3 +192,9 @@ LOGGING = {
     },
 }
 
+# Mostrar tracebacks completos de errores 500 en consola
+import sys
+LOGGING["handlers"]["console"]["stream"] = sys.stdout
+LOGGING["loggers"]["django.request"]["level"] = "DEBUG"
+LOGGING["loggers"]["django"]["level"] = "DEBUG"
+
