@@ -9,11 +9,13 @@ import dj_database_url
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # ========================
-# Seguridad
+# Seguridad / Entorno
 # ========================
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-me")
-DEBUG = True
+DEBUG = os.environ.get("DEBUG", "0") == "1"
 
+# Puedes pasar ALLOWED_HOSTS desde el panel (separados por comas),
+# o usamos estos valores por defecto:
 ALLOWED_HOSTS = [
     "phomagic.com",
     "www.phomagic.com",
@@ -21,12 +23,19 @@ ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
 ]
+# Si hay var en entorno, la priorizamos
+_env_hosts = [h.strip() for h in os.environ.get("ALLOWED_HOSTS", "").split(",") if h.strip()]
+if _env_hosts:
+    ALLOWED_HOSTS = _env_hosts
 
 CSRF_TRUSTED_ORIGINS = [
     "https://phomagic.com",
     "https://www.phomagic.com",
     "https://phomagic-web.onrender.com",
 ]
+_env_csrf = [u.strip() for u in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",") if u.strip()]
+if _env_csrf:
+    CSRF_TRUSTED_ORIGINS = _env_csrf
 
 # ========================
 # Apps
@@ -38,11 +47,17 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+
+    # Tu app
     "products",
 ]
 
+# ========================
+# Middleware
+# ========================
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # Debe ir justo detrás de SecurityMiddleware
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -51,12 +66,19 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
+# ========================
+# URLs / WSGI
+# ========================
 ROOT_URLCONF = "photopro_app.urls"
+WSGI_APPLICATION = "photopro_app.wsgi.application"
 
+# ========================
+# Templates
+# ========================
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates"],
+        "DIRS": [BASE_DIR / "templates"],  # carpeta 'templates' raíz (opcional)
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -68,15 +90,17 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "photopro_app.wsgi.application"
-
 # ========================
 # Base de datos
 # ========================
 DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 if DATABASE_URL:
     DATABASES = {
-        "default": dj_database_url.parse(DATABASE_URL, conn_max_age=600, ssl_require=False)
+        "default": dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=600,
+            ssl_require=False,  # Render maneja SSL; mantenemos False para evitar problemas locales
+        )
     }
 else:
     DATABASES = {
@@ -95,31 +119,48 @@ USE_I18N = True
 USE_TZ = True
 
 # ========================
-# --- Static files ---
-import os
-from pathlib import Path
-BASE_DIR = Path(__file__).resolve().parent.parent
-
+# Archivos estáticos
+# ========================
 STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"     # para collectstatic en Render
-STATICFILES_DIRS = [ BASE_DIR / "products" / "static" ]  # tus estáticos de app
+STATIC_ROOT = BASE_DIR / "staticfiles"               # para 'collectstatic' en Render
+STATICFILES_DIRS = [BASE_DIR / "products" / "static"]  # estáticos propios (si la carpeta existe)
 
-# WhiteNoise
-MIDDLEWARE = [
-    "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",  # <== tiene que ir justo detrás de SecurityMiddleware
-    "django.contrib.sessions.middleware.SessionMiddleware",
-    "django.middleware.common.CommonMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
-    "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "django.contrib.messages.middleware.MessageMiddleware",
-    "django.middleware.clickjacking.XFrameOptionsMiddleware",
-]
+# Django 5+: configuración moderna de storages (en lugar de STATICFILES_STORAGE)
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+}
 
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
-
-
-# --- Archivos de usuario (media) ---
+# ========================
+# Archivos de usuario (media)
+# ========================
+# En Render, si montaste un Disk en /opt/render/project/media, úsalo vía env:
 MEDIA_URL = "/media/"
-# IMPORTANTE: pon aquí la ruta donde montaste el Disk de Render (ej.: /opt/render/project/media)
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", BASE_DIR / "media"))
+
+# ========================
+# Login/Logout
+# ========================
+LOGIN_URL = "login"
+LOGIN_REDIRECT_URL = "home"
+LOGOUT_REDIRECT_URL = "login"
+
+# ========================
+# Auto IDs
+# ========================
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# ========================
+# Seguridad extra en producción
+# ========================
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 60 * 60 * 24  # 1 día (sube cuando todo esté estable)
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
