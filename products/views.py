@@ -18,8 +18,17 @@ def home(request):
     return render(request, "products/home.html", {"categories": categories})
 
 
-def subcategories(request, category_name):
-    category = get_object_or_404(Category, name=category_name)
+# products/views.py (Fragmento corregido)
+# ...
+
+def subcategories(request, category_slug): # <-- AHORA ESPERA 'category_slug'
+    """
+    Lista las subcategorías para la categoría dada por su slug.
+    """
+    # Usamos .filter(slug=category_slug) porque la URL nos da el slug, no el nombre.
+    category = get_object_or_404(Category, slug=category_slug)
+    
+    # El resto de la lógica es la misma
     subs = Subcategory.objects.filter(category=category).order_by("name")
     return render(
         request,
@@ -27,6 +36,7 @@ def subcategories(request, category_name):
         {"category": category, "subcategories": subs},
     )
 
+# ...
 
 def view_options(request, subcategory_id):
     """
