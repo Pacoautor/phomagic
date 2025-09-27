@@ -45,3 +45,21 @@ class MasterPrompt(models.Model):
     def __str__(self):
         v = f" [{self.view.name}]" if self.view else ""
         return f"Prompt: {self.subcategory}{v}"
+from django.db import models
+from django.utils.text import slugify
+from django.db.models.signals import pre_save
+from django.dispatch import receiver
+
+# Tu modelo Category existente
+class Category(models.Model):
+    name = models.CharField(max_length=200, unique=True)
+    slug = models.SlugField(max_length=200, unique=True, null=True, blank=True)
+    # ... otros campos
+
+    def __str__(self):
+        return self.name
+
+@receiver(pre_save, sender=Category)
+def set_category_slug(sender, instance, **kwargs):
+    if not instance.slug:
+        instance.slug = slugify(instance.name)
