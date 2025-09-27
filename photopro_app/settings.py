@@ -1,4 +1,3 @@
-# photopro_app/settings.py
 from pathlib import Path
 import os
 import dj_database_url
@@ -23,7 +22,6 @@ ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
 ]
-# Si hay var en entorno, la priorizamos
 _env_hosts = [h.strip() for h in os.environ.get("ALLOWED_HOSTS", "").split(",") if h.strip()]
 if _env_hosts:
     ALLOWED_HOSTS = _env_hosts
@@ -53,18 +51,23 @@ INSTALLED_APPS = [
 ]
 
 # ========================
-# Middleware
+# Middleware (¡CORREGIDO Y UNIFICADO!)
 # ========================
 MIDDLEWARE = [
-    "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",  # Debe ir justo detrás de SecurityMiddleware
-    "django.contrib.sessions.middleware.SessionMiddleware",
-    "django.middleware.common.CommonMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
-    "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "django.contrib.messages.middleware.MessageMiddleware",
-    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    'django.middleware.security.SecurityMiddleware',
+    # Middleware de Sesión: ¡Debe ir antes de la Autenticación!
+    'django.contrib.sessions.middleware.SessionMiddleware', 
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    # Middleware de Autenticación
+    'django.contrib.auth.middleware.AuthenticationMiddleware', 
+    # Middleware de Mensajes
+    'django.contrib.messages.middleware.MessageMiddleware', 
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # WhiteNoise (para servir estáticos en producción)
+    'whitenoise.middleware.WhiteNoiseMiddleware', 
 ]
+
 
 # ========================
 # URLs / WSGI
@@ -78,7 +81,7 @@ WSGI_APPLICATION = "photopro_app.wsgi.application"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates"],  # carpeta 'templates' raíz (opcional)
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -99,7 +102,7 @@ if DATABASE_URL:
         "default": dj_database_url.parse(
             DATABASE_URL,
             conn_max_age=600,
-            ssl_require=False,  # Render maneja SSL; mantenemos False para evitar problemas locales
+            ssl_require=False,
         )
     }
 else:
@@ -121,46 +124,18 @@ USE_TZ = True
 # ========================
 # Archivos estáticos
 # ========================
-from pathlib import Path
-import os
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-# ...
-
-DEBUG = False  # en producción mantenlo en False
-
-ALLOWED_HOSTS = ["www.phomagic.com", "phomagic.com", "phomagic-web.onrender.com"]
-
-# Static files (CSS, JS, imágenes)
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [
-    BASE_DIR / "products" / "static",   # <- TU carpeta de estáticos del proyecto
+    BASE_DIR / "products" / "static",   # Carpeta de estáticos del proyecto
 ]
-
-# WhiteNoise
-MIDDLEWARE = [
-    "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",  # <- debe ir justo después de SecurityMiddleware
-    # ... el resto de middlewares
-]
-
-# ⚠️ TEMPORAL para evitar 500 por ficheros estáticos faltantes:
 STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
 
-# (Cuando acabemos de corregir rutas, lo devolveremos a:)
-# STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
-
-# Media (si usas MEDIA para resultados o subidas)
+# Media (Subidas de usuario)
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
-# ========================
-# Archivos de usuario (media)
-# ========================
-# En Render, si montaste un Disk en /opt/render/project/media, úsalo vía env:
-MEDIA_URL = "/media/"
+# En Render, si montaste un Disk, esta es la ruta:
 MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", BASE_DIR / "media"))
+
 
 # ========================
 # Login/Logout
@@ -181,7 +156,7 @@ if not DEBUG:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    SECURE_HSTS_SECONDS = 60 * 60 * 24  # 1 día (sube cuando todo esté estable)
+    SECURE_HSTS_SECONDS = 60 * 60 * 24
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
 
@@ -197,24 +172,15 @@ LOGGING = {
         "level": "INFO",
     },
     "loggers": {
-        # Errores de vistas/respuestas -> a consola con traceback
         "django.request": {
             "handlers": ["console"],
-            "level": "ERROR",
+            "level": "DEBUG",
             "propagate": False,
         },
-        # Si quieres algo más de ruido, puedes subir a WARNING o INFO
         "django": {
             "handlers": ["console"],
-            "level": "ERROR",
+            "level": "DEBUG",
             "propagate": True,
         },
     },
 }
-
-# Mostrar tracebacks completos de errores 500 en consola
-import sys
-LOGGING["handlers"]["console"]["stream"] = sys.stdout
-LOGGING["loggers"]["django.request"]["level"] = "DEBUG"
-LOGGING["loggers"]["django"]["level"] = "DEBUG"
-

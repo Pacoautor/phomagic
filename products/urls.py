@@ -13,7 +13,7 @@ def logout_view(request):
     auth_logout(request)
     return redirect("login")
 
-urlpatterns = [
+urlpatterns = [ # <-- ¡AQUÍ EMPIEZA LA LISTA!
     path("admin/", admin.site.urls),
 
     # Rutas públicas de la app
@@ -24,9 +24,9 @@ urlpatterns = [
 
     # Auth
     path("login/", auth_views.LoginView.as_view(template_name="registration/login.html"), name="login"),
-    path("signup/", pviews.signup_view, name="signup"),  # Corregido para que apunte a la vista correcta
+    path("signup/", pviews.signup_view, name="signup"),  # Corregido: apunta a 'signup_view'
     path("logout/", logout_view, name="logout"),
-]
+] # <-- Aquí termina la lista.
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

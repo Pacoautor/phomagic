@@ -1,13 +1,16 @@
-# products/models.py
 from django.db import models
+from django.utils.text import slugify
+from django.db.models.signals import pre_save
+from django.dispatch import receiver
 
+# Define los modelos una sola vez
 class Category(models.Model):
-    name = models.CharField(max_length=100, unique=True)
+    name = models.CharField(max_length=200, unique=True)
+    slug = models.SlugField(max_length=200, unique=True, null=True, blank=True)
     image = models.ImageField(upload_to="category_images/", blank=True, null=True)
 
     def __str__(self):
         return self.name
-
 
 class Subcategory(models.Model):
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
@@ -20,9 +23,8 @@ class Subcategory(models.Model):
     def __str__(self):
         return f"{self.category} / {self.name}"
 
-
 class ViewOption(models.Model):
-    """Nuevo nivel: Vista (frontal, 45 izq, etc.) dependiente de la Subcategoría."""
+    """Vista (frontal, 45 izq, etc.) dependiente de la Subcategoría."""
     subcategory = models.ForeignKey(Subcategory, on_delete=models.CASCADE, related_name="views")
     name = models.CharField(max_length=100)
     image = models.ImageField(upload_to="view_images/", blank=True, null=True)
@@ -34,9 +36,8 @@ class ViewOption(models.Model):
     def __str__(self):
         return f"{self.subcategory} / {self.name}"
 
-
 class MasterPrompt(models.Model):
-    """Ahora el prompt puede depender de Subcategoría y de Vista (opcional)."""
+    """El prompt puede depender de Subcategoría y de Vista (opcional)."""
     subcategory = models.ForeignKey(Subcategory, on_delete=models.CASCADE)
     view = models.ForeignKey(ViewOption, on_delete=models.CASCADE, blank=True, null=True)
     prompt_text = models.TextField()
@@ -45,20 +46,8 @@ class MasterPrompt(models.Model):
     def __str__(self):
         v = f" [{self.view.name}]" if self.view else ""
         return f"Prompt: {self.subcategory}{v}"
-from django.db import models
-from django.utils.text import slugify
-from django.db.models.signals import pre_save
-from django.dispatch import receiver
 
-# Tu modelo Category existente
-class Category(models.Model):
-    name = models.CharField(max_length=200, unique=True)
-    slug = models.SlugField(max_length=200, unique=True, null=True, blank=True)
-    # ... otros campos
-
-    def __str__(self):
-        return self.name
-
+# Señal para generar el slug automáticamente antes de guardar
 @receiver(pre_save, sender=Category)
 def set_category_slug(sender, instance, **kwargs):
     if not instance.slug:
