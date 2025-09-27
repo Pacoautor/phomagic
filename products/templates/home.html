@@ -1,7 +1,5 @@
 {% load static %}
 
-<img src="{% static 'category_images/01_moda.png' %}" alt="MODA" class="card-img-top">
-
 {% extends "base.html" %}
 
 {% block title %}Inicio - AI Photo Shop{% endblock %}
@@ -15,8 +13,8 @@
         <p class="text-success">Ya estás conectado como <strong>{{ user.username }}</strong>.</p>
     {% else %}
         <p class="text-info">Inicia sesión o regístrate para comenzar.</p>
-        <a href="{% url 'account_login' %}" class="btn btn-primary">Entrar</a>
-        <a href="{% url 'account_signup' %}" class="btn btn-success">Registrarse</a>
+        <a href="{% url 'login' %}" class="btn btn-primary">Entrar</a>
+        <a href="{% url 'signup' %}" class="btn btn-success">Registrarse</a>
     {% endif %}
 </div>
 {% endblock %}
