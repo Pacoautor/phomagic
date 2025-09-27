@@ -1,3 +1,6 @@
+{% load static %}
+<img src="{% static 'subcategory_images/camisas_hombre_2.jpg' %}" alt="{{ s.name }}" class="card-img-top">
+
 {% extends "base.html" %}
 {% block title %}{{ category.name|upper }}{% endblock %}
 

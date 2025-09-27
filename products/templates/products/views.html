@@ -1,3 +1,6 @@
+{% load static %}
+<img src="{% static 'view_images/camisa_hombre_extendida_.png' %}" alt="{{ v.name }}" class="card-img-top">
+
 {% extends "base.html" %}
 {% block title %}Vistas – {{ subcategory.category.name }} / {{ subcategory.name }}{% endblock %}
 
