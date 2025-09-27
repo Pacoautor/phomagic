@@ -2,89 +2,78 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <!-- Google Font: Coiny -->
-<link href="https://fonts.googleapis.com/css2?family=Coiny&display=swap" rel="stylesheet">
-
-<style>
-  /* Muestra imagen completa sin recortar dentro de una altura razonable */
-  .img-contain {
-    width: 100%;
-    height: 260px;           /* ajusta si quieres más/menos alto */
-    object-fit: contain;     /* <- clave: NO recorta */
-    background: #111;        /* fondo detrás de la imagen */
-  }
-
-  @media (min-width: 992px){ .img-contain { height: 300px; } }
-</style>
-
-
-<style>
-  .navbar-brand.phomagic {
-    font-family: "Coiny", system-ui, cursive;
-    color: #fff !important;
-    font-size: 28px;
-    letter-spacing: 1px;
-  }
-  /* Centrar contenido dentro de la barra */
-  .navbar .container,
-  .navbar .container-fluid {
-    display: flex;
-    justify-content: center;
-  }
-  /* Evitar que los enlaces de la derecha desplacen el título */
-  .navbar .right-actions {
-    position: absolute;
-    right: 16px;
-    top: 50%;
-    transform: translateY(-50%);
-  }
-</style>
-	
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{% block title %}AI Photo Shop{% endblock %}</title>
+
+  <!-- Favicon / web app icons -->
+  <link rel="icon" type="image/x-icon" href="{% static 'favicon.ico' %}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{% static 'favicon.ico' %}">
+  <link rel="apple-touch-icon" href="{% static 'favicon.ico' %}">
+  <link rel="manifest" href="data:application/manifest+json,{&quot;name&quot;:&quot;PHOMAGIC&quot;}">
+
+  <!-- Google Font: Coiny -->
+  <link href="https://fonts.googleapis.com/css2?family=Coiny&display=swap" rel="stylesheet">
+
+  <!-- Bootstrap -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
   <style>
+    /* Fondo y tarjetas */
     body{ background:#1e1f22; color:#e8e8e8; }
     .card{ background:#2a2b2e; border:1px solid #3a3b3e; }
+
+    /* Imagenes sin recorte */
+    .img-contain{
+      width:100%; height:260px; object-fit:contain; background:#111;
+    }
+    @media (min-width: 992px){ .img-contain{ height:300px; } }
+
+    /* Marca centrada en navbar */
+    .navbar-brand.phomagic{
+      font-family:"Coiny", system-ui, cursive; color:#fff!important;
+      font-size:28px; letter-spacing:1px;
+    }
+    .navbar .container, .navbar .container-fluid{
+      display:flex; justify-content:center;
+    }
+    .navbar .right-actions{
+      position:absolute; right:16px; top:50%; transform:translateY(-50%);
+    }
   </style>
 </head>
 <body>
-  <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
   <div class="container position-relative">
-    <!-- Marca centrada -->
     <a class="navbar-brand phomagic mx-auto" href="/">PHOMAGIC</a>
 
-    <!-- Acciones derecha (login/logout) -->
-   <div class="right-actions">
-  {% if user.is_authenticated %}
-    <span class="me-3">Hola, {{ user.username }}</span>
-    <form method="post" action="{% url 'logout' %}" class="d-inline">
-      {% csrf_token %}
-      <button type="submit" class="btn btn-sm btn-outline-light">Cerrar sesión</button>
-    </form>
-  {% else %}
-    <a class="btn btn-sm btn-outline-light me-2" href="{% url 'login' %}">Iniciar sesión</a>
-  {% endif %}
-</div>
-
+    <div class="right-actions">
+      {% if user.is_authenticated %}
+        <span class="me-3">Hola, {{ user.username }}</span>
+        <form method="post" action="{% url 'logout' %}" class="d-inline">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-sm btn-outline-light">Cerrar sesión</button>
+        </form>
+      {% else %}
+        <a class="btn btn-sm btn-outline-light me-2" href="{% url 'login' %}">Iniciar sesión</a>
+      {% endif %}
+    </div>
   </div>
 </nav>
 
+<div class="container mt-4">
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
 
-  <div class="container mt-4">
-    {% if messages %}
-      {% for message in messages %}
-        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-          {{ message }}
-          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-      {% endfor %}
-    {% endif %}
+  {% block content %}{% endblock %}
+</div>
 
-    {% block content %}{% endblock %}
-  </div>
-
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
