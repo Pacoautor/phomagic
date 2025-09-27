@@ -1,28 +1,34 @@
-
 # photopro_app/urls.py
 from django.contrib import admin
-from django.urls import path, include, re_path
+from django.urls import path
+from django.contrib.auth import views as auth_views
+from django.contrib.auth import logout as auth_logout
+from django.shortcuts import redirect
 from django.conf import settings
-from django.views.static import serve as static_serve
+from django.conf.urls.static import static
+
+from products import views as pviews  # usamos directamente las vistas
+
+def logout_view(request):
+    auth_logout(request)
+    return redirect("login")
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("", include("products.urls")),
-    path("accounts/", include("django.contrib.auth.urls")),  # login/logout nativos
+
+    # Rutas públicas de la app (sin includes para evitar bucles)
+    path("", pviews.home, name="home"),
+    path("c/<slug:category_slug>/", pviews.subcategories, name="subcategories"),
+    path("v/<int:subcategory_id>/", pviews.view_options, name="view_options"),
+    path("g/<int:subcategory_id>/<int:view_id>/", pviews.generate_photo, name="generate_photo"),
+
+    # Auth
+    path("login/", auth_views.LoginView.as_view(template_name="registration/login.html"), name="login"),
+    path("signup/", pviews.signup, name="signup"),  # si tu vista existe; si no, bórrala
+    path("logout/", logout_view, name="logout"),
 ]
 
-# Servir MEDIA en producción también (para Render)
-# OJO: esto sirve media con Django; suficiente para tu caso.
+# En Render (ahora con DEBUG=1) servimos media y estáticos solo si DEBUG
 if settings.DEBUG:
-    # En local, Django ya sirve STATIC. Añadimos MEDIA por comodidad.
-    urlpatterns += [
-        re_path(r'^media/(?P<path>.*)$', static_serve, {'document_root': settings.MEDIA_ROOT}),
-    ]
-else:
-    # En producción (Render), añade un handler para MEDIA también.
-    urlpatterns += [
-        re_path(r'^media/(?P<path>.*)$', static_serve, {'document_root': settings.MEDIA_ROOT}),
-    ]
-
-# Importante: NO añadimos ninguna redirección al favicon con staticfiles_storage.
-# El favicon lo serviremos como un estático normal desde la plantilla (luego lo vemos).
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
