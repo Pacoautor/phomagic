@@ -28,7 +28,7 @@
           {% endif %}
           <div class="card-body">
             <h5 class="card-title">{{ c.name|upper }}</h5>
-            <a class="btn btn-primary" href="{% url 'subcategories' c.slug|default:c.name|urlencode %}">Ver subcategorías</a>
+            <a class="btn btn-primary" href="{% url 'subcategories' c.slug %}">Ver subcategorías</a>
           </div>
         </div>
       </div>

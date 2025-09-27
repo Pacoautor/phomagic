@@ -24,6 +24,7 @@ urlpatterns = [
 
     # Auth
     path("login/", auth_views.LoginView.as_view(template_name="registration/login.html"), name="login"),
+    path("signup/", pviews.signup_view, name="signup"),  # Corregido para que apunte a la vista correcta
     path("logout/", logout_view, name="logout"),
 ]
 
