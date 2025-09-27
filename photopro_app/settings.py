@@ -164,3 +164,31 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 60 * 60 * 24  # 1 día (sube cuando todo esté estable)
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
+
+# --- Logging: enviar errores de Django a la consola de Render ---
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler"},
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
+    "loggers": {
+        # Errores de vistas/respuestas -> a consola con traceback
+        "django.request": {
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+        # Si quieres algo más de ruido, puedes subir a WARNING o INFO
+        "django": {
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": True,
+        },
+    },
+}
+
