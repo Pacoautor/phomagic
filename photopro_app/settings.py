@@ -121,20 +121,40 @@ USE_TZ = True
 # ========================
 # Archivos estáticos
 # ========================
+from pathlib import Path
+import os
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# ...
+
+DEBUG = False  # en producción mantenlo en False
+
+ALLOWED_HOSTS = ["www.phomagic.com", "phomagic.com", "phomagic-web.onrender.com"]
+
+# Static files (CSS, JS, imágenes)
 STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"               # para 'collectstatic' en Render
-STATICFILES_DIRS = [BASE_DIR / "products" / "static"]  # estáticos propios (si la carpeta existe)
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_DIRS = [
+    BASE_DIR / "products" / "static",   # <- TU carpeta de estáticos del proyecto
+]
 
-# Django 5+: configuración moderna de storages (en lugar de STATICFILES_STORAGE)
-STORAGES = {
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-    },
-    "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
-}
+# WhiteNoise
+MIDDLEWARE = [
+    "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # <- debe ir justo después de SecurityMiddleware
+    # ... el resto de middlewares
+]
 
+# ⚠️ TEMPORAL para evitar 500 por ficheros estáticos faltantes:
+STATICFILES_STORAGE = "whitenoise.storage.CompressedStaticFilesStorage"
+
+# (Cuando acabemos de corregir rutas, lo devolveremos a:)
+# STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+# Media (si usas MEDIA para resultados o subidas)
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 # ========================
 # Archivos de usuario (media)
 # ========================
