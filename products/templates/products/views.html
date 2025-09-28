@@ -1,11 +1,11 @@
-{% load static %}
-<img src="{% static 'view_images/camisa_hombre_extendida_.png' %}" alt="{{ v.name }}" class="card-img-top">
-
 {% extends "base.html" %}
-{% block title %}Vistas – {{ subcategory.category.name }} / {{ subcategory.name }}{% endblock %}
+{% load static %}
+
+{% block title %}Vistas - {{ subcategory.category.name|upper }} / {{ subcategory.name }}{% endblock %}
 
 {% block content %}
 <style>
+  /* Estilo que evita el recorte y usa fondo oscuro para PNGs */
   .img-no-crop {
     width: 100%;
     height: auto;
@@ -17,29 +17,40 @@
 </style>
 
 <div class="container my-4">
-  <h2 class="mb-4">Vistas disponibles – {{ subcategory.category.name }} / {{ subcategory.name }}</h2>
+  <h2 class="mb-3">{{ subcategory.category.name|upper }} / {{ subcategory.name }}</h2>
+  <h3>Elige una vista para generar la foto:</h3>
 
-  {% if view_list %}
-    <div class="row g-3">
-      {% for v in view_list %}
-        <div class="col-12 col-md-4">
-          <div class="card h-100 bg-dark text-light border-0 shadow-sm">
-            {% if v.image %}
-              <img src="{{ v.image.url }}" alt="{{ v.name }}" class="img-no-crop">
-            {% else %}
-              <img src="https://via.placeholder.com/1200x600?text={{ v.name|urlencode }}" alt="{{ v.name }}" class="img-no-crop">
-            {% endif %}
-            <div class="card-body">
-              <h5 class="card-title">{{ v.name }}</h5>
-              <a class="btn btn-primary w-100" href="{% url 'generate_photo' subcategory.id v.id %}">Elegir esta vista</a>
-            </div>
+  <!--
+    El bloque de la imagen (línea 2 del error) debe ir dentro de la estructura de contenido.
+    La variable esperada en este archivo es 'view_list' (según products/views.py).
+  -->
+  <div class="row g-3">
+    {% for v in view_list %}
+      <div class="col-12 col-sm-6 col-lg-4">
+        <div class="card h-100 bg-dark text-light border-0 shadow-sm">
+          
+          {% if v.image %}
+            <!-- Usamos la imagen de la vista si existe -->
+            <img src="{{ v.image.url }}" alt="{{ v.name }}" class="img-no-crop">
+          {% else %}
+            <!-- Placeholder si no hay imagen -->
+            <!-- Usamos el tag de la línea 2 del error como placeholder -->
+            <img src="{% static 'view_images/camisa_hombre_extendida_png' %}" alt="{{ v.name }}" class="img-no-crop"> 
+          {% endif %}
+          
+          <div class="card-body">
+            <h5 class="card-title">{{ v.name }}</h5>
+            
+            <!-- Enlace a la función de generación (generate_photo) -->
+            <a class="btn btn-success w-100" href="{% url 'generate_photo' subcategory.id v.id %}">Generar Foto</a>
           </div>
         </div>
-      {% endfor %}
-    </div>
-  {% else %}
-    <div class="alert alert-warning">No hay vistas configuradas para esta subcategoría.</div>
-  {% endif %}
+      </div>
+    {% empty %}
+      <div class="col-12">
+        <div class="alert alert-info">No hay opciones de vista disponibles para esta subcategoría.</div>
+      </div>
+    {% endfor %}
+  </div>
 </div>
 {% endblock %}
-
