@@ -7,34 +7,45 @@
 <div class="container py-4">
   <h1 class="mb-3">Generar foto – {{ subcategory.category.name }} / {{ subcategory.name }}</h1>
 
-  <form method="post" enctype="multipart/form-data" class="bg-dark text-light p-4 rounded shadow-sm">
-    {% csrf_token %}
+  <form method="post" enctype="multipart/form-data" class="mt-3">
+  {% csrf_token %}
 
+  <!-- Prompt -->
+  <div class="mb-3">
+    <label class="form-label">Prompt principal</label>
+    <textarea name="final_prompt" class="form-control" rows="3"
+              placeholder="Describe cómo quieres la imagen…">{{ final_prompt }}</textarea>
+  </div>
+
+  <!-- Vista elegida (solo lectura) -->
+  <div class="mb-3">
+    <label class="form-label">Vista elegida</label>
+    <input type="text" class="form-control" value="{{ viewopt.name }}" disabled>
+    <!-- valores reales que necesita la vista en el POST -->
+    <input type="hidden" name="subcategory_id" value="{{ subcategory.id }}">
+    <input type="hidden" name="view_id" value="{{ viewopt.id }}">
+  </div>
+
+  <!-- Imagen base del usuario -->
+  <div class="mb-3">
+    <label class="form-label">Imagen base (opcional, JPG/PNG/WebP)</label>
+    <input type="file" name="product_photo" class="form-control"
+           accept="image/png,image/jpeg,image/webp">
+  </div>
+
+  <!-- Referencia del master prompt (si existe) -->
+  {% if master_prompt_photo %}
     <div class="mb-3">
-      <label class="form-label">Prompt principal</label>
-      {{ form.prompt }}
+      <label class="form-label">Foto de referencia (plantilla)</label><br>
+      <img src="{{ master_prompt_photo.url }}" alt="Referencia"
+           style="max-width:280px;height:auto;border:1px solid #333;border-radius:6px;">
     </div>
+  {% endif %}
 
-    <div class="mb-3">
-      <label class="form-label">Vista elegida</label>
-      <input type="text" class="form-control" value="{{ viewoption.name }}" disabled>
-    </div>
+  <button type="submit" class="btn btn-primary">Generar</button>
+  <a href="{% url 'view_options' subcategory.id %}"
+     class="btn btn-outline-secondary ms-2">Volver</a>
+</form>
 
-    <div class="mb-3">
-      <label class="form-label">Imagen base (opcional)</label>
-      {{ form.base_image }}
-    </div>
-
-    {% if master_prompt_photo %}
-      <div class="mb-3">
-        <label class="form-label">Foto de referencia (opcional)</label><br>
-        <img src="{{ master_prompt_photo.url }}" alt="Referencia"
-             style="max-width:280px; height:auto; border:1px solid #333; border-radius:6px;">
-      </div>
-    {% endif %}
-
-    <button type="submit" class="btn btn-primary">Generar</button>
-    <a href="{% url 'view_options' subcategory.id %}" class="btn btn-outline-secondary ms-2">Volver</a>
-  </form>
 </div>
 {% endblock %}
