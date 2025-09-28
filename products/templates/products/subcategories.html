@@ -1,10 +1,52 @@
-{% extends "base.html" %} {% load static %} {% block title %}Subcategorías - {{ category.name|upper }}{% endblock %} {% block content %}
-{{ category.name|upper }}
-{% for s in subcategories %}
-{% if s.image %}{{ s.name }}{% else %}{{ s.name }}{% endif %}
-{{ s.name }}
-Elegir vista
-{% empty %}
-No hay subcategorías.
-{% endfor %}
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Subcategorías - {{ category.name|upper }}{% endblock %}
+
+{% block content %}
+<style>
+  /* Estilo que evita el recorte y usa fondo oscuro para PNGs */
+  .img-no-crop {
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+    background: #0f0f10;
+    border-radius: .5rem;
+    display: block;
+  }
+</style>
+
+<div class="container my-4">
+  <h2 class="mb-3">{{ category.name|upper }}</h2>
+
+  <div class="row g-3">
+    {% for s in subcategories %}
+      <div class="col-12 col-sm-6 col-lg-4">
+        <!-- Tarjeta completa para cada subcategoría -->
+        <div class="card h-100 bg-dark text-light border-0 shadow-sm">
+          
+          {% if s.image %}
+            <!-- Imagen de la subcategoría -->
+            <img src="{{ s.image.url }}" alt="{{ s.name }}" class="img-no-crop">
+          {% else %}
+            <!-- Placeholder si no hay imagen -->
+            <img src="https://via.placeholder.com/1200x600?text={{ s.name|urlencode }}" alt="{{ s.name }}" class="img-no-crop">
+          {% endif %}
+          
+          <div class="card-body">
+            <!-- Título de la subcategoría -->
+            <h5 class="card-title">{{ s.name }}</h5>
+            
+            <!-- Botón de acción con el enlace correcto -->
+            <a class="btn btn-primary w-100" href="{% url 'view_options' s.id %}">Elegir vista</a>
+          </div>
+        </div>
+      </div>
+    {% empty %}
+      <div class="col-12">
+        <div class="alert alert-info">No hay subcategorías disponibles.</div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
 {% endblock %}
