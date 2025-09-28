@@ -1,4 +1,3 @@
-# products/views.py
 import os, base64, requests
 from io import BytesIO
 from PIL import Image
@@ -18,17 +17,12 @@ def home(request):
     return render(request, "products/home.html", {"categories": categories})
 
 
-# products/views.py (Fragmento corregido)
-# ...
-
-def subcategories(request, category_slug): # <-- AHORA ESPERA 'category_slug'
+def subcategories(request, category_slug):
     """
     Lista las subcategorías para la categoría dada por su slug.
     """
-    # Usamos .filter(slug=category_slug) porque la URL nos da el slug, no el nombre.
     category = get_object_or_404(Category, slug=category_slug)
     
-    # El resto de la lógica es la misma
     subs = Subcategory.objects.filter(category=category).order_by("name")
     return render(
         request,
@@ -36,7 +30,6 @@ def subcategories(request, category_slug): # <-- AHORA ESPERA 'category_slug'
         {"category": category, "subcategories": subs},
     )
 
-# ...
 
 def view_options(request, subcategory_id):
     """
@@ -54,9 +47,15 @@ def view_options(request, subcategory_id):
 
 # ----- Helpers OpenAI -----
 def _openai_image_edit_via_rest(prompt: str, django_uploaded_file, size: str):
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("Falta OPENAI_API_KEY.")
+    # OBTENCIÓN DE CLAVE MÁS SEGURA
+    api_key = settings.OPENAI_API_KEY 
+
+    if not api_key or api_key.startswith(("sk-test", "CLAVE_DE_PRUEBA_FALLIDA")):
+        # Este error solo saldrá si la clave no está en Render
+        raise RuntimeError(
+            "La clave API de OpenAI no es válida o falta. "
+            "Asegúrate de que la variable OPENAI_API_KEY esté correctamente configurada en Render."
+        )
 
     # aseguramos puntero al inicio
     try:
@@ -73,9 +72,10 @@ def _openai_image_edit_via_rest(prompt: str, django_uploaded_file, size: str):
             getattr(django_uploaded_file, "content_type", None) or "application/octet-stream",
         ),
     }
-    data = {"model": "gpt-image-1", "prompt": prompt, "size": size, "n": 1}
+    # Modelo correcto para edición de imágenes
+    data = {"model": "dall-e-2", "prompt": prompt, "size": size, "n": 1}
     r = requests.post(url, headers=headers, files=files, data=data, timeout=300)
-    r.raise_for_status()
+    r.raise_for_status() # Esto lanzará requests.HTTPError si el código es 4xx o 5xx
     j = r.json()
     b64 = j["data"][0]["b64_json"]
     return base64.b64decode(b64)
@@ -146,9 +146,24 @@ def generate_photo(request, subcategory_id, view_id):
                 )
 
             except requests.HTTPError as http_err:
-                error_msg = f"Error HTTP de OpenAI: {http_err.response.status_code} – {http_err.response.text}"
+                # Si falla, aquí podemos ver el mensaje de OpenAI
+                status_code = http_err.response.status_code
+                error_details = http_err.response.text
+                
+                # Revisión más clara del error (si no es un error 404, debería ser uno de estos)
+                if status_code == 401:
+                    error_msg = "Error 401: La clave API es inválida. Verifica la OPENAI_API_KEY en Render."
+                elif status_code == 400 and "billing" in error_details:
+                    error_msg = "Error 400: Fallo de facturación. Revisa tu saldo/límites en OpenAI."
+                else:
+                    error_msg = f"Error HTTP de OpenAI: {status_code}. Detalles: {error_details[:50]}..."
+                    
+            except RuntimeError as e:
+                # Captura el error de clave faltante que definimos arriba
+                error_msg = f"Error de configuración: {e}"
+                    
             except Exception as e:
-                error_msg = f"¡Ha ocurrido un error en la API de OpenAI! Error: {e}"
+                error_msg = f"¡Ha ocurrido un error inesperado! Error: {e}"
 
         # Lógica de verificación y renderizado (integrada de la función `generate_result`)
         
@@ -159,11 +174,10 @@ def generate_photo(request, subcategory_id, view_id):
             "image_256": urls.get("256x256"),
         }
 
-        # Si hubo un error en la generación y no tenemos URLs, ponemos un mensaje genérico.
+        # Si no hubo error específico, pero no hay imagen (sólo debería pasar si la imagen no se subió)
         if not safe_urls["image_1024"] and not error_msg:
             error_msg = (
-                "No se generó ninguna imagen. Si estás usando OpenAI, "
-                "revisa el saldo/limite de facturación y los logs del servicio."
+                "No se generó ninguna imagen. Verifica que la imagen de producto fue subida correctamente."
             )
         
         # Si tienes error_msg, sobrescribe las URLs a None para evitar mostrar URLs inválidas.

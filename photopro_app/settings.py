@@ -184,3 +184,13 @@ LOGGING = {
         },
     },
 }
+
+
+
+# Al final del archivo settings.py
+
+# ========================
+# OpenAI API Key
+# ========================
+import os
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "CLAVE_DE_PRUEBA_FALLIDA") # Usa la clave de Render
