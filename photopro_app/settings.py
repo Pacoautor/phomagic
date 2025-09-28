@@ -18,33 +18,22 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 # === Apps ===
-INSTALLED_APPS = [
-    # Django
-    "django.contrib.admin",
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
-    "django.contrib.sessions",
-    "django.contrib.messages",
-    "django.contrib.staticfiles",
+INSTALLED_APPS += [
     "django.contrib.sites",
-
-    # Terceros
-    "whitenoise.runserver_nostatic",  # antes de staticfiles en MIDDLEWARE
     "allauth",
     "allauth.account",
-    "allauth.socialaccount",
-
-    # Tu app
-    "products",
+    "allauth.socialaccount",  # opcional si no usarás sociales
 ]
-
 SITE_ID = 1
 
-# === Auth / allauth ===
+TEMPLATES[0]["OPTIONS"]["context_processors"] += [
+    "django.template.context_processors.request",  # requerido por allauth
+]
 AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",
     "allauth.account.auth_backends.AuthenticationBackend",
 ]
+
 ACCOUNT_AUTHENTICATION_METHOD = "username_email"
 ACCOUNT_EMAIL_REQUIRED = False
 ACCOUNT_EMAIL_VERIFICATION = "none"
@@ -54,15 +43,15 @@ LOGOUT_REDIRECT_URL = "home"
 # === Middleware ===
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # si usas WhiteNoise para estáticos
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "allauth.account.middleware.AccountMiddleware",  # ← REQUERIDO por django-allauth
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
-
 ROOT_URLCONF = "photopro_app.urls"
 
 TEMPLATES = [
