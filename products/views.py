@@ -1,222 +1,247 @@
 # products/views.py
+from __future__ import annotations
 
+import base64
+import io
 import os
 import uuid
-import base64
-import logging
-from io import BytesIO
+from typing import Dict, Optional
 
 from django.conf import settings
 from django.contrib import messages
-from django.shortcuts import render, get_object_or_404, redirect
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
+from django.shortcuts import get_object_or_404, render
+from django.urls import reverse
 
 from PIL import Image
 
-# ===== MODELOS =====
-# Ajusta si tus nombres difieren
 from .models import Category, Subcategory, ViewOption, MasterPrompt
 
-# ===== OpenAI SDK v1 =====
-from openai import OpenAI
+# --- OpenAI SDK (v1.x) ---
+try:
+    # SDK oficial nuevo (openai>=1.0)
+    from openai import OpenAI
 
-logger = logging.getLogger(__name__)
+    client: Optional[OpenAI] = OpenAI(api_key=getattr(settings, "OPENAI_API_KEY", None))
+except Exception:
+    client = None
 
 
-# --------------------------
-# Utilidad: guardar + derivar tamaños
-# --------------------------
-def _save_bytes_and_downscale(img_bytes: bytes, base_name: str):
+# ---------------------------------------------------------------------
+# Utilidades
+# ---------------------------------------------------------------------
+def _save_bytes_and_downscale(image_bytes: bytes, base_id: str) -> Dict[str, str]:
     """
-    Guarda PNG 1024 y deriva 512/256 sin recorte (contain). Fondo oscuro #222.
-    Devuelve dict con URLs absolutas (MEDIA_URL) para usarlas en el template.
+    Guarda la imagen 1024 y genera 512 y 256 SIN recortar, manteniendo aspecto.
+    Devuelve dict con rutas relativas para MEDIA_URL.
     """
-    out_dir = os.path.join(settings.MEDIA_ROOT, "results")
-    os.makedirs(out_dir, exist_ok=True)
+    rel_dir = "results"
+    abs_dir = os.path.join(settings.MEDIA_ROOT, rel_dir)
+    os.makedirs(abs_dir, exist_ok=True)
 
-    urls = {}
-    sizes = [(1024, 1024), (512, 512), (256, 256)]
+    paths = {
+        "1024": os.path.join(abs_dir, f"{base_id}_1024.png"),
+        "512": os.path.join(abs_dir, f"{base_id}_512.png"),
+        "256": os.path.join(abs_dir, f"{base_id}_256.png"),
+    }
 
-    img = Image.open(BytesIO(img_bytes)).convert("RGBA")
+    # 1024
+    with open(paths["1024"], "wb") as f:
+        f.write(image_bytes)
 
-    for w, h in sizes:
-        canvas = Image.new("RGBA", (w, h), (34, 34, 34, 255))  # fondo oscuro
-        thumb = img.copy()
-        thumb.thumbnail((w, h), Image.LANCZOS)
-        ox = (w - thumb.width) // 2
-        oy = (h - thumb.height) // 2
-        canvas.paste(thumb, (ox, oy), mask=thumb if thumb.mode == "RGBA" else None)
+    # Redimensionados
+    img = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+    for size_key, size in [("512", 512), ("256", 256)]:
+        w, h = img.size
+        if w == 0 or h == 0:
+            continue
+        scale = min(size / w, size / h)
+        new_w = max(1, int(w * scale))
+        new_h = max(1, int(h * scale))
+        resized = img.resize((new_w, new_h), Image.LANCZOS)
 
-        fname = f"{base_name}_{w}x{h}.png"
-        fpath = os.path.join(out_dir, fname)
-        canvas.convert("RGB").save(fpath, format="PNG", optimize=True)
+        # Lienzo cuadrado para no recortar
+        canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        off_x = (size - new_w) // 2
+        off_y = (size - new_h) // 2
+        canvas.paste(resized, (off_x, off_y))
+        canvas.convert("RGB").save(paths[size_key], format="PNG", optimize=True)
 
-        # URL absoluta (MEDIA_URL termina en '/')
-        urls[f"image_{w}"] = f"{settings.MEDIA_URL}results/{fname}"
+    # Rutas relativas (para MEDIA_URL)
+    return {
+        "image_1024": os.path.join(rel_dir, f"{base_id}_1024.png").replace("\\", "/"),
+        "image_512": os.path.join(rel_dir, f"{base_id}_512.png").replace("\\", "/"),
+        "image_256": os.path.join(rel_dir, f"{base_id}_256.png").replace("\\", "/"),
+    }
 
-    return urls
+
+def _get_master_prompt(subcategory: Subcategory, view: ViewOption) -> Dict[str, Optional[str]]:
+    """
+    Devuelve prompt maestro y foto de referencia (si existen).
+    """
+    mp = (
+        MasterPrompt.objects.filter(subcategory=subcategory, view=view)
+        .order_by("id")
+        .first()
+    )
+    if mp:
+        return {
+            "prompt_text": (mp.prompt_text or "").strip(),
+            "reference_photo": mp.reference_photo.url if mp.reference_photo else None,
+        }
+    return {"prompt_text": "", "reference_photo": None}
 
 
-# --------------------------
-# Home: categorías
-# --------------------------
+# ---------------------------------------------------------------------
+# Vistas de navegación
+# ---------------------------------------------------------------------
 def home(request):
-    categories = Category.objects.all().order_by("name")
+    categories = Category.objects.all().order_by("id")
     return render(request, "home.html", {"categories": categories})
 
 
-# --------------------------
-# Subcategorías de una categoría (por slug)
-# URL de ejemplo: /c/<category_slug>/
-# --------------------------
-def category_detail(request, category_slug):
+def subcategories(request, category_slug: str):
     category = get_object_or_404(Category, slug=category_slug)
-    subcategories = Subcategory.objects.filter(category=category).order_by("name")
+    subcats = Subcategory.objects.filter(category=category).order_by("id")
     return render(
         request,
         "products/subcategories.html",
-        {"category": category, "subcategories": subcategories},
+        {"category": category, "subcategories": subcats},
     )
 
 
-# --------------------------
-# Vistas disponibles para una subcategoría (por id)
-# URL de ejemplo: /v/<subcategory_id>/
-# --------------------------
 def view_options(request, subcategory_id: int):
-    subcategory = get_object_or_404(Subcategory, pk=subcategory_id)
-    view_list = ViewOption.objects.filter(subcategory=subcategory).order_by("name")
+    subcategory = get_object_or_404(Subcategory, id=subcategory_id)
+    view_list = ViewOption.objects.filter(subcategory=subcategory).order_by("id")
     return render(
         request,
         "products/views.html",
         {
             "subcategory": subcategory,
-            "view_list": view_list,
+            "view_list": view_list,  # <- tu plantilla debe usar this (antes 'views' daba conflicto)
         },
     )
 
 
-# --------------------------
-# Generar foto (GET muestra form, POST llama a OpenAI)
-# URL de ejemplo: /g/<subcategory_id>/<view_id>/
-# --------------------------
+# ---------------------------------------------------------------------
+# Generación / edición de imagen
+# URL: /g/<subcategory_id>/<view_id>/
+# Templates: products/generate_photo.html (form) -> products/result.html
+# ---------------------------------------------------------------------
 def generate_photo(request, subcategory_id: int, view_id: int):
-    subcategory = get_object_or_404(Subcategory, pk=subcategory_id)
-    viewopt = get_object_or_404(ViewOption, pk=view_id, subcategory=subcategory)
-
-    # Prompt maestro opcional (si lo usas en tu modelo)
-    mp = (
-        MasterPrompt.objects.filter(subcategory=subcategory, view=viewopt).first()
-        if "MasterPrompt" in globals()
-        else None
-    )
-    master_prompt = (mp.prompt_text or "").strip() if mp else ""
+    subcategory = get_object_or_404(Subcategory, id=subcategory_id)
+    view = get_object_or_404(ViewOption, id=view_id, subcategory=subcategory)
+    master = _get_master_prompt(subcategory, view)
+    master_prompt = master["prompt_text"]
+    master_prompt_photo = master["reference_photo"]
 
     if request.method == "GET":
+        # Muestra el formulario
         return render(
             request,
             "products/generate_photo.html",
             {
                 "subcategory": subcategory,
-                "viewopt": viewopt,
+                "view": view,
                 "master_prompt": master_prompt,
-                "master_prompt_photo": (mp.reference_photo.url if mp and mp.reference_photo else None),
+                "master_prompt_photo": master_prompt_photo,
             },
         )
 
-    # ---------- POST ----------
-    final_prompt = (request.POST.get("final_prompt") or master_prompt or "").strip()
+    # POST: procesar
+    prompt_input = (request.POST.get("prompt") or "").strip()
+    uploaded_image = request.FILES.get("image")
+
+    # Prompt final
+    final_prompt = master_prompt
+    if prompt_input:
+        if final_prompt:
+            final_prompt = f"{final_prompt}\n\n{prompt_input}"
+        else:
+            final_prompt = prompt_input
+
+    # Validaciones rápidas
     if not final_prompt:
-        messages.warning(request, "Escribe un prompt para generar la imagen.")
-        return redirect("generate_photo", subcategory_id=subcategory.id, view_id=viewopt.id)
+        messages.error(request, "Añade un prompt para generar la imagen.")
+        return render(
+            request,
+            "products/generate_photo.html",
+            {
+                "subcategory": subcategory,
+                "view": view,
+                "master_prompt": master_prompt,
+                "master_prompt_photo": master_prompt_photo,
+            },
+        )
 
-    # archivo del usuario (opcional)
-    uploaded = request.FILES.get("product_photo")
-    img_bytes = None
-    if uploaded:
-        try:
-            img_bytes = uploaded.read()
-            logger.info(f"[gen] Archivo recibido: product_photo, {len(img_bytes)} bytes")
-        except Exception as e:
-            logger.exception("[gen] Error leyendo archivo subido")
-            messages.error(request, f"No se pudo leer la imagen subida: {e}")
-            return redirect("generate_photo", subcategory_id=subcategory.id, view_id=viewopt.id)
-
-    # Clave OpenAI
-    openai_key = os.getenv("OPENAI_API_KEY")
-    if not openai_key:
-        messages.error(request, "Falta OPENAI_API_KEY en el servidor.")
+    # Comprobar OpenAI
+    if client is None or not getattr(settings, "OPENAI_API_KEY", None):
         return render(
             request,
             "products/result.html",
-            {"subcategory": subcategory, "viewopt": viewopt, "image_1024": None, "image_512": None, "image_256": None},
+            {
+                "subcategory": subcategory,
+                "view": view,
+                "final_prompt": final_prompt,
+                "image_1024": None,
+                "image_512": None,
+                "image_256": None,
+                "error_msg": "Cliente OpenAI no inicializado o falta OPENAI_API_KEY.",
+            },
         )
 
-    client = OpenAI(api_key=openai_key)
-
-    # base de nombre de archivo
-    base_id = uuid.uuid4().hex
-    base_name = f"{subcategory.id}_{viewopt.id}_{base_id}"
-
+    # Llamada a OpenAI
+    base_id = uuid.uuid4().hex[:8]
     try:
-        # 1) Si hay imagen del usuario: EDIT
-        if img_bytes:
-            logger.info("[gen] Usando edits con gpt-image-1")
-            # ✅ correcto con el SDK actual
-result = client.images.edit(
-    model="gpt-image-1",
-    image=io.BytesIO(orig_bytes),   # un file-like de la imagen original
-    prompt=final_prompt,
-    size="1024x1024",
-)
-
-            b64 = result.data[0].b64_json
-            out_bytes = base64.b64decode(b64)
-
-        # 2) Si no hay imagen: GENERATE
-        else:
-            logger.info("[gen] Usando generate con gpt-image-1 (sin imagen base)")
-            result = client.images.generate(
+        if uploaded_image:
+            # EDICIÓN (con imagen base)
+            orig_bytes = uploaded_image.read()
+            result = client.images.edit(
                 model="gpt-image-1",
-                prompt=final_prompt or "Foto de producto con fondo blanco, iluminación uniforme, alta calidad.",
+                image=io.BytesIO(orig_bytes),
+                prompt=final_prompt,
                 size="1024x1024",
             )
-            b64 = result.data[0].b64_json
-            out_bytes = base64.b64decode(b64)
+        else:
+            # GENERACIÓN (sin imagen base)
+            result = client.images.generate(
+                model="gpt-image-1",
+                prompt=final_prompt,
+                size="1024x1024",
+            )
 
-        urls = _save_bytes_and_downscale(out_bytes, base_name)
-        image_1024 = urls.get("image_1024")
-        image_512 = urls.get("image_512")
-        image_256 = urls.get("image_256")
-
-        if not image_1024:
-            messages.warning(request, "No se obtuvo imagen 1024x1024.")
-            image_512 = image_256 = None
+        # Obtener b64 y guardar 1024 + derivados
+        b64 = result.data[0].b64_json
+        img_bytes = base64.b64decode(b64)
+        urls = _save_bytes_and_downscale(img_bytes, base_id)
 
         return render(
             request,
             "products/result.html",
             {
                 "subcategory": subcategory,
-                "viewopt": viewopt,
-                "prompt": final_prompt,
-                "image_1024": image_1024,
-                "image_512": image_512,
-                "image_256": image_256,
+                "view": view,
+                "final_prompt": final_prompt,
+                "image_1024": urls["image_1024"],
+                "image_512": urls["image_512"],
+                "image_256": urls["image_256"],
+                "error_msg": None,
             },
         )
 
     except Exception as e:
-        logger.exception("[gen] Error al generar/editar imagen con OpenAI")
-        messages.error(request, f"No se pudo generar la imagen. Detalle: {e}")
+        # Fallback a resultado con error
         return render(
             request,
             "products/result.html",
             {
                 "subcategory": subcategory,
-                "viewopt": viewopt,
-                "prompt": final_prompt,
+                "view": view,
+                "final_prompt": final_prompt,
                 "image_1024": None,
                 "image_512": None,
                 "image_256": None,
+                "error_msg": f"No se pudo generar la imagen. Detalle: {e}",
             },
         )
