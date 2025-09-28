@@ -8,6 +8,5 @@ urlpatterns = [
     path("v/<int:subcategory_id>/", pviews.view_options, name="view_options"),
     path("g/<int:subcategory_id>/<int:view_id>/", pviews.generate_photo, name="generate_photo"),
 
-    # Registro de usuario
-    path("signup/", pviews.signup, name="signup"),
+   
 ]

@@ -38,18 +38,48 @@ if _env_csrf:
 # ========================
 # Apps
 # ========================
-INSTALLED_APPS = [
-    "django.contrib.admin",
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
-    "django.contrib.sessions",
-    "django.contrib.messages",
-    "django.contrib.staticfiles",
+# settings.py (solo los fragmentos relevantes)
 
-    # Tu app
-    "products",
+INSTALLED_APPS = [
+    # Django
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'django.contrib.sites',          # <- REQUERIDO por allauth
+
+    # Terceros
+    'allauth',                       # <- REQUERIDO
+    'allauth.account',               # <- REQUERIDO
+    'allauth.socialaccount',         # <- opcional (pero recomendable)
+
+    # Apps del proyecto
+    'products',
 ]
 
+# Allauth necesita este context processor:
+TEMPLATES[0]['OPTIONS']['context_processors'] = [
+    'django.template.context_processors.debug',
+    'django.template.context_processors.request',   # <- REQUERIDO por allauth
+    'django.contrib.auth.context_processors.auth',
+    'django.contrib.messages.context_processors.messages',
+    # (deja los que ya tuvieras)
+]
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',                # Django
+    'allauth.account.auth_backends.AuthenticationBackend',      # Allauth
+]
+
+SITE_ID = 1
+
+# Opciones mínimas para no bloquearte con emails en desarrollo/Render
+LOGIN_REDIRECT_URL = '/'
+ACCOUNT_AUTHENTICATION_METHOD = 'username_email'
+ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_EMAIL_VERIFICATION = 'none'   # cámbialo a 'optional' o 'mandatory' si luego configuras email
 # ========================
 # Middleware (¡CORREGIDO Y UNIFICADO!)
 # ========================
