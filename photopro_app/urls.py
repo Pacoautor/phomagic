@@ -1,18 +1,25 @@
-# photopro_app/urls.py
 from django.contrib import admin
 from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+
+from products import views as pviews
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path("admin/", admin.site.urls),
 
-    # tu app
-    path('', include('products.urls')),
+    # Público
+    path("", pviews.home, name="home"),
+    path("c/<slug:category_slug>/", pviews.subcategories, name="subcategories"),
+    path("v/<int:subcategory_id>/", pviews.view_options, name="view_options"),
+    path("g/<int:subcategory_id>/<int:view_id>/", pviews.generate_photo, name="generate_photo"),
 
-    # auth de allauth (signup, login, logout, etc.) en /accounts/...
-    path('accounts/', include('allauth.urls')),
+    # Auth
+    path("accounts/", include("django.contrib.auth.urls")),  # login/logout/password reset
+    path("accounts/", include("allauth.urls")),              # /accounts/… de allauth
+    path("signup/", pviews.signup, name="signup"),           # tu vista de registro
 ]
 
-# Archivos estáticos y media en desarrollo
+# Media en desarrollo
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
