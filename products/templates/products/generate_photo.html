@@ -43,18 +43,24 @@
     {% endif %}
 
     <div class="card p-3">
-      <form method="post" enctype="multipart/form-data">
-        {% csrf_token %}
-        <div class="mb-3">
-          <label class="form-label">Foto del producto</label>
-          <input class="form-control" type="file" name="product_photo" accept="image/*" required>
-        </div>
-        <button class="btn btn-primary">Generar</button>
-        <a class="btn btn-secondary ms-2" href="javascript:history.back()">Volver</a>
-      </form>
+      
+<form method="post" enctype="multipart/form-data" class="mt-4">
+  {% csrf_token %}
+
+  <div class="mb-3">
+    <label for="product_photo" class="form-label">Sube tu foto</label>
+    <input
+      type="file"
+      id="product_photo"
+      name="product_photo"
+      accept="image/*"
+      class="form-control"
+      required
+    />
+    <div class="form-text">
+      Formatos: JPG/PNG; máximo recomendado 10MB.
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+  <button type="submit" class="btn btn-primary">Generar</button>
+</form>

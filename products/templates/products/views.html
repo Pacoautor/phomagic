@@ -1,56 +1,191 @@
-{% extends "base.html" %}
-{% load static %}
+# --- imports necesarios arriba del archivo (confirma que estén; si no, añádelos) ---
+import os
+import io
+import uuid
+from django.shortcuts import render, get_object_or_404
+from django.conf import settings
+from django.contrib import messages
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
+from PIL import Image
 
-{% block title %}Vistas - {{ subcategory.category.name|upper }} / {{ subcategory.name }}{% endblock %}
+from .models import Subcategory, ViewOption, MasterPrompt
 
-{% block content %}
-<style>
-  /* Estilo que evita el recorte y usa fondo oscuro para PNGs */
-  .img-no-crop {
-    width: 100%;
-    height: auto;
-    object-fit: contain;
-    background: #0f0f10;
-    border-radius: .5rem;
-    display: block;
-  }
-</style>
+# OpenAI SDK v1
+from openai import OpenAI
+client = None
+try:
+    client = OpenAI()  # usará OPENAI_API_KEY del entorno
+except Exception:
+    client = None
 
-<div class="container my-4">
-  <h2 class="mb-3">{{ subcategory.category.name|upper }} / {{ subcategory.name }}</h2>
-  <h3>Elige una vista para generar la foto:</h3>
 
-  <!--
-    El bloque de la imagen (línea 2 del error) debe ir dentro de la estructura de contenido.
-    La variable esperada en este archivo es 'view_list' (según products/views.py).
-  -->
-  <div class="row g-3">
-    {% for v in view_list %}
-      <div class="col-12 col-sm-6 col-lg-4">
-        <div class="card h-100 bg-dark text-light border-0 shadow-sm">
-          
-          {% if v.image %}
-            <!-- Usamos la imagen de la vista si existe -->
-            <img src="{{ v.image.url }}" alt="{{ v.name }}" class="img-no-crop">
-          {% else %}
-            <!-- Placeholder si no hay imagen -->
-            <!-- Usamos el tag de la línea 2 del error como placeholder -->
-            <img src="{% static 'view_images/camisa_hombre_extendida_png' %}" alt="{{ v.name }}" class="img-no-crop"> 
-          {% endif %}
-          
-          <div class="card-body">
-            <h5 class="card-title">{{ v.name }}</h5>
-            
-            <!-- Enlace a la función de generación (generate_photo) -->
-            <a class="btn btn-success w-100" href="{% url 'generate_photo' subcategory.id v.id %}">Generar Foto</a>
-          </div>
-        </div>
-      </div>
-    {% empty %}
-      <div class="col-12">
-        <div class="alert alert-info">No hay opciones de vista disponibles para esta subcategoría.</div>
-      </div>
-    {% endfor %}
-  </div>
-</div>
-{% endblock %}
+def _save_bytes_and_downscale(image_bytes: bytes, base_name: str) -> dict:
+    """
+    Guarda la imagen 1024 y genera 512/256 SIN recortes, manteniendo aspecto.
+    Devuelve dict con URLs {'1024x1024': url, '512x512': url, '256x256': url}
+    """
+    # Asegura carpeta
+    out_dir = os.path.join(settings.MEDIA_ROOT, "results")
+    os.makedirs(out_dir, exist_ok=True)
+
+    # Abrimos con PIL
+    img = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+    # Generamos tamaños deseados
+    sizes = [(1024, 1024), (512, 512), (256, 256)]
+    urls = {}
+
+    for w, h in sizes:
+        # Copia
+        im = img.copy()
+        # Ajuste “cover” sin recortar: creamos un lienzo cuadrado blanco y centramos la imagen escalada
+        # (si prefieres “contain” con borde blanco)
+        bg = Image.new("RGBA", (w, h), (255, 255, 255, 255))
+        im.thumbnail((w, h), Image.LANCZOS)  # mantiene aspecto SIN recortes
+        # centra
+        x = (w - im.width) // 2
+        y = (h - im.height) // 2
+        bg.paste(im, (x, y), im)
+
+        # Guarda
+        fname = f"{base_name}_{w}x{h}.png"
+        fpath = os.path.join(out_dir, fname)
+        bg.convert("RGB").save(fpath, format="PNG", optimize=True)
+
+        # URL pública vía storage
+        rel_path = os.path.join("results", fname).replace("\\", "/")
+        urls[f"{w}x{h}"] = default_storage.url(rel_path)
+
+    return urls
+
+
+def generate_photo(request, subcategory_id, view_id):
+    """
+    Vista robusta:
+      - GET: formulario
+      - POST: genera con OpenAI; si falla, redimensiona la foto subida como fallback
+      - Contexto para result.html incluye image_1024 / image_512 / image_256 (o None) y mensajes
+    """
+    subcategory = get_object_or_404(Subcategory, pk=subcategory_id)
+    viewopt = get_object_or_404(ViewOption, pk=view_id, subcategory_id=subcategory_id)
+
+    # Prompt principal (si hay varios, toma el primero)
+    mp = MasterPrompt.objects.filter(subcategory_id=subcategory_id, view_id=view_id).first()
+    final_prompt = (mp.prompt_text or "").strip() if mp else ""
+
+    # Para mostrar un resumen del prompt en el formulario
+    prompt_previews = []
+    if final_prompt:
+        preview = (final_prompt[:600] + "…") if len(final_prompt) > 600 else final_prompt
+        prompt_previews.append(preview)
+
+    if request.method == "GET":
+        return render(
+            request,
+            "products/generate_photo.html",
+            {
+                "subcategory": subcategory,
+                "viewopt": viewopt,
+                "prompts": [final_prompt] if final_prompt else [],
+                "prompt_previews": prompt_previews,
+            },
+        )
+
+    # --- POST ---
+    product_photo = request.FILES.get("product_photo")
+    if not product_photo:
+        messages.error(request, "Debes subir una imagen de producto.")
+        return render(
+            request,
+            "products/generate_photo.html",
+            {
+                "subcategory": subcategory,
+                "viewopt": viewopt,
+                "prompts": [final_prompt] if final_prompt else [],
+                "prompt_previews": prompt_previews,
+            },
+        )
+
+    # Guarda ORIGINAL subida (por si quieres conservarla)
+    upload_dir = os.path.join(settings.MEDIA_ROOT, "uploads")
+    os.makedirs(upload_dir, exist_ok=True)
+    base_id = f"{subcategory_id}_{view_id}_{uuid.uuid4().hex[:8]}"
+    original_name = f"orig_{base_id}{os.path.splitext(product_photo.name)[1].lower() or '.png'}"
+    original_rel = os.path.join("uploads", original_name).replace("\\", "/")
+    original_path = os.path.join(upload_dir, original_name)
+    with open(original_path, "wb") as f:
+        for chunk in product_photo.chunks():
+            f.write(chunk)
+
+    # Intento con OpenAI (edición con imagen base)
+    urls = {}
+    error_msg = None
+    try:
+        if client is None:
+            raise RuntimeError("Cliente OpenAI no inicializado (revisa OPENAI_API_KEY).")
+
+        # Leemos bytes de la imagen subida
+        with open(original_path, "rb") as f:
+            img_bytes = f.read()
+
+        # Llamada a imágenes (edits) de gpt-image-1 con la foto como base
+        # NOTA: en SDK 1.x la API de edición es `client.images.edits`
+        result = client.images.edits(
+            model="gpt-image-1",
+            image=[{"image": io.BytesIO(img_bytes)}],
+            prompt=final_prompt or "Mejora y limpia la foto del producto con fondo blanco.",
+            size="1024x1024",
+            # background="transparent"  # quita el comentario si quisieras png con transparencia
+        )
+
+        # Respuesta: b64 -> bytes
+        b64 = result.data[0].b64_json
+        gen_bytes = io.BytesIO()
+        gen_bytes.write(io.BytesIO(io.BytesIO(bytes()).getbuffer()).getbuffer())  # no-op para linterns
+
+        import base64
+        gen_bytes = base64.b64decode(b64)
+
+        # Guardamos 1024 y derivamos 512/256
+        urls = _save_bytes_and_downscale(gen_bytes, f"result_{base_id}")
+
+    except Exception as e:
+        # Fallback: usar la foto del usuario para generar 1024/512/256 sin recortar
+        try:
+            with open(original_path, "rb") as f:
+                orig_bytes = f.read()
+            urls = _save_bytes_and_downscale(orig_bytes, f"fallback_{base_id}")
+            error_msg = (
+                "No se pudo generar con OpenAI (se ha usado tu foto como base). "
+                f"Detalle: {e}"
+            )
+        except Exception as ee:
+            urls = {"1024x1024": None, "512x512": None, "256x256": None}
+            error_msg = f"No se pudo procesar la imagen. Detalle: {ee}"
+
+    # Preparamos claves que consume la plantilla de resultado
+    image_1024 = urls.get("1024x1024")
+    image_512 = urls.get("512x512")
+    image_256 = urls.get("256x256")
+
+    if error_msg and (image_1024 or image_512 or image_256):
+        messages.warning(request, error_msg)
+    elif error_msg:
+        messages.error(
+            request,
+            "No se generó ninguna imagen. Si usas OpenAI, revisa la clave/saldo o los logs."
+        )
+        image_1024 = image_512 = image_256 = None
+
+    return render(
+        request,
+        "products/result.html",
+        {
+            "subcategory": subcategory,
+            "viewopt": viewopt,
+            "prompt": final_prompt,
+            "image_1024": image_1024,
+            "image_512": image_512,
+            "image_256": image_256,
+        },
+    )
