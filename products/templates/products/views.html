@@ -7,7 +7,7 @@
 <div class="container py-4">
   <h1 class="mb-3">Vistas disponibles – {{ subcategory.category.name }} / {{ subcategory.name }}</h1>
 
-  {% with opts=view_options|default:views %}
+  {% with opts=view_list %}
     {% if not opts %}
       <div class="alert alert-warning">No hay vistas configuradas para esta subcategoría.</div>
     {% else %}
@@ -37,3 +37,4 @@
   <button type="button" class="btn btn-outline-secondary mt-4" onclick="history.back()">Volver</button>
 </div>
 {% endblock %}
+
