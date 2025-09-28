@@ -1,44 +1,40 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Generar imagen – {{ subcategory.name }} / {{ viewopt.name }}{% endblock %}
+{% block title %}Generar foto – {{ subcategory.category.name }} / {{ subcategory.name }}{% endblock %}
 
 {% block content %}
 <div class="container py-4">
-  <h1 class="mb-3">Generar imagen – {{ subcategory.name }} / {{ viewopt.name }}</h1>
+  <h1 class="mb-3">Generar foto – {{ subcategory.category.name }} / {{ subcategory.name }}</h1>
 
-  {% if messages %}
-    {% for message in messages %}
-      <div class="alert alert-{{ message.tags }}">{{ message }}</div>
-    {% endfor %}
-  {% endif %}
-
-  {% if prompt_previews %}
-    <div class="card mb-3">
-      <div class="card-header">Resumen del prompt que se usará</div>
-      <div class="card-body">
-        <pre class="mb-0" style="white-space:pre-wrap">{{ prompt_previews.0 }}</pre>
-      </div>
-    </div>
-  {% endif %}
-
-  <form method="post" enctype="multipart/form-data" class="card p-3">
+  <form method="post" enctype="multipart/form-data" class="bg-dark text-light p-4 rounded shadow-sm">
     {% csrf_token %}
+
     <div class="mb-3">
-      <label for="id_product_photo" class="form-label">Sube tu foto de producto</label>
-      <input type="file" name="product_photo" accept="image/*" class="form-control" id="id_product_photo" required>
-      <div class="form-text">JPG/PNG recomendados. Tamaño suficiente para 1024×1024.</div>
+      <label class="form-label">Prompt principal</label>
+      {{ form.prompt }}
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Vista elegida</label>
+      <input type="text" class="form-control" value="{{ viewoption.name }}" disabled>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Imagen base (opcional)</label>
+      {{ form.base_image }}
     </div>
 
     {% if master_prompt_photo %}
       <div class="mb-3">
         <label class="form-label">Foto de referencia (opcional)</label><br>
-        <img src="{{ master_prompt_photo.url }}" alt="Referencia" style="max-width:280px; height:auto; border:1px solid #333; border-radius:6px;">
+        <img src="{{ master_prompt_photo.url }}" alt="Referencia"
+             style="max-width:280px; height:auto; border:1px solid #333; border-radius:6px;">
       </div>
     {% endif %}
 
     <button type="submit" class="btn btn-primary">Generar</button>
-    <a href="{% url 'subcategory_detail' subcategory.id %}" class="btn btn-outline-secondary ms-2">Volver</a>
+    <a href="{% url 'view_options' subcategory.id %}" class="btn btn-outline-secondary ms-2">Volver</a>
   </form>
 </div>
 {% endblock %}
