@@ -49,17 +49,18 @@
   <div class="container position-relative">
     <a class="navbar-brand phomagic mx-auto" href="/">PHOMAGIC</a>
 
-    <div class="right-actions">
-      {% if user.is_authenticated %}
-        <span class="me-3">Hola, {{ user.username }}</span>
-        <form method="post" action="{% url 'logout' %}" class="d-inline">
-          {% csrf_token %}
-          <button type="submit" class="btn btn-sm btn-outline-light">Cerrar sesión</button>
-        </form>
-      {% else %}
-        <a class="btn btn-sm btn-outline-light me-2" href="{% url 'login' %}">Iniciar sesión</a>
-      {% endif %}
-    </div>
+<div class="right-actions">
+  {% if user.is_authenticated %}
+    <span class="me-3">Hola, {{ user.username }}</span>
+    <form method="post" action="{% url 'account_logout' %}" class="d-inline">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-sm btn-outline-light">Cerrar sesión</button>
+    </form>
+  {% else %}
+    <a class="btn btn-sm btn-outline-light me-2" href="{% url 'account_login' %}">Iniciar sesión</a>
+  {% endif %}
+</div>
+
   </div>
 </nav>
 
