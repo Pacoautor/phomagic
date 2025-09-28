@@ -161,12 +161,14 @@ def generate_photo(request, subcategory_id: int, view_id: int):
         # 1) Si hay imagen del usuario: EDIT
         if img_bytes:
             logger.info("[gen] Usando edits con gpt-image-1")
-            result = client.images.edits(
-                model="gpt-image-1",
-                image=[("image", img_bytes)],
-                prompt=final_prompt or "Mejora y limpia la foto del producto con fondo blanco.",
-                size="1024x1024",
-            )
+            # ✅ correcto con el SDK actual
+result = client.images.edit(
+    model="gpt-image-1",
+    image=io.BytesIO(orig_bytes),   # un file-like de la imagen original
+    prompt=final_prompt,
+    size="1024x1024",
+)
+
             b64 = result.data[0].b64_json
             out_bytes = base64.b64decode(b64)
 
