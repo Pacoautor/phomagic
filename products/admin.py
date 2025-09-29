@@ -1,31 +1,43 @@
 from django.contrib import admin
-from .models import Category, Subcategory, ViewOption, GeneratedImage
+from .models import Category, Subcategory, ViewOption
 
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "slug")
-    prepopulated_fields = {"slug": ("name",)}
+    list_display = ("name", "slug", "has_image")
     search_fields = ("name",)
+    prepopulated_fields = {"slug": ("name",)}
+    # Importante: NO readonly, así puedes editar
+    fields = ("name", "slug", "image")
+
+    def has_image(self, obj):
+        return bool(obj.image)
+    has_image.boolean = True
+    has_image.short_description = "Imagen"
 
 
 @admin.register(Subcategory)
 class SubcategoryAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "category")
+    list_display = ("name", "category", "slug", "has_image")
     list_filter = ("category",)
     search_fields = ("name", "category__name")
+    prepopulated_fields = {"slug": ("name",)}
+    fields = ("category", "name", "slug", "image")
+
+    def has_image(self, obj):
+        return bool(obj.image)
+    has_image.boolean = True
+    has_image.short_description = "Imagen"
 
 
 @admin.register(ViewOption)
 class ViewOptionAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "subcategory", "strength")
+    list_display = ("name", "subcategory", "has_image")
     list_filter = ("subcategory__category", "subcategory")
     search_fields = ("name", "subcategory__name", "subcategory__category__name")
+    fields = ("subcategory", "name", "image", "prompt_override")
 
-
-@admin.register(GeneratedImage)
-class GeneratedImageAdmin(admin.ModelAdmin):
-    list_display = ("id", "user", "category", "subcategory", "view_option", "created_at")
-    list_filter = ("category", "subcategory", "view_option", "created_at")
-    search_fields = ("user__username", "category__name", "subcategory__name", "view_option__name")
-    readonly_fields = ("created_at",)
+    def has_image(self, obj):
+        return bool(obj.image)
+    has_image.boolean = True
+    has_image.short_description = "Imagen"
