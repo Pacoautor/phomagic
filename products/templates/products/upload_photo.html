@@ -9,8 +9,8 @@
   <h1 class="mb-3">
     Generar imagen
     {% if subcategory %}<small class="text-muted">– {{ subcategory.category.name }} / {{ subcategory.name }}</small>{% endif %}
-    {% firstof viewoption.name viewopt.name as _vo_name %}
-    {% if _vo_name %}<small class="text-muted"> / {{ _vo_name }}</small>{% endif %}
+    {% firstof viewoption.name viewopt.name as vo_name %}
+    {% if vo_name %}<small class="text-muted"> / {{ vo_name }}</small>{% endif %}
   </h1>
 
   {# Si ya tenemos resultado, lo mostramos (elige la primera variable existente sin romper si falta) #}
