@@ -1,43 +1,36 @@
 from django.contrib import admin
-from .models import Category, Subcategory, ViewOption
+from .models import Category, Subcategory, ViewOption, GeneratedImage
 
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ("name", "slug", "has_image")
-    search_fields = ("name",)
-    prepopulated_fields = {"slug": ("name",)}
-    # Importante: NO readonly, así puedes editar
-    fields = ("name", "slug", "image")
-
-    def has_image(self, obj):
-        return bool(obj.image)
-    has_image.boolean = True
-    has_image.short_description = "Imagen"
+    list_display = ("name", "sort_order", "slug", "image")
+    list_editable = ("sort_order",)
+    search_fields = ("name", "slug")
+    ordering = ("sort_order", "name")
 
 
 @admin.register(Subcategory)
 class SubcategoryAdmin(admin.ModelAdmin):
-    list_display = ("name", "category", "slug", "has_image")
+    list_display = ("name", "category", "sort_order", "slug", "image")
+    list_editable = ("sort_order",)
     list_filter = ("category",)
-    search_fields = ("name", "category__name")
-    prepopulated_fields = {"slug": ("name",)}
-    fields = ("category", "name", "slug", "image")
-
-    def has_image(self, obj):
-        return bool(obj.image)
-    has_image.boolean = True
-    has_image.short_description = "Imagen"
+    search_fields = ("name", "slug", "category__name")
+    ordering = ("category__sort_order", "category__name", "sort_order", "name")
 
 
 @admin.register(ViewOption)
 class ViewOptionAdmin(admin.ModelAdmin):
-    list_display = ("name", "subcategory", "has_image")
+    list_display = ("name", "subcategory")
     list_filter = ("subcategory__category", "subcategory")
     search_fields = ("name", "subcategory__name", "subcategory__category__name")
-    fields = ("subcategory", "name", "image", "prompt_override")
+    ordering = ("subcategory__category__sort_order", "subcategory__sort_order", "name")
 
-    def has_image(self, obj):
-        return bool(obj.image)
-    has_image.boolean = True
-    has_image.short_description = "Imagen"
+
+@admin.register(GeneratedImage)
+class GeneratedImageAdmin(admin.ModelAdmin):
+    list_display = ("id", "subcategory", "viewoption", "created_at")
+    list_filter = ("subcategory__category", "subcategory", "viewoption")
+    readonly_fields = ("created_at",)
+    ordering = ("-created_at",)
+

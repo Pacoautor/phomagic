@@ -1,44 +1,136 @@
+{% load static %}
 {% extends "base.html" %}
+
 {% block title %}Generar imagen{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* Overlay de carga */
+  #loadingOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    display: none; /* oculto por defecto */
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+  }
+  #loadingBox {
+    text-align: center;
+    padding: 16px;
+    border-radius: 12px;
+    background: #111;
+    border: 1px solid #333;
+    width: min(360px, 90vw);
+  }
+  #loadingBox p {
+    margin: 10px 0 0 0;
+    color: #ddd;
+    font-size: 0.95rem;
+  }
+  .ratio-1x1 {
+    position: relative;
+    width: 100%;
+    padding-bottom: 100%;
+  }
+  .ratio-1x1 > img {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: contain; border-radius: 8px;
+    background: #000;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container py-4">
+
   <h1 class="mb-3">
-    Generar imagen
-    <small class="text-muted">– {{ subcategory.category.name }} / {{ subcategory.name }} / {{ viewoption.name }}</small>
+    The Photo Magic
+    {% if subcategory %}<small class="text-muted">– {{ subcategory.category.name }} / {{ subcategory.name }}</small>{% endif %}
+    {% firstof viewoption.name viewopt.name as vo_name %}
+    {% if vo_name %}<small class="text-muted"> / {{ vo_name }}</small>{% endif %}
   </h1>
 
-  {% if error_msg %}
-    <div class="alert alert-warning">{{ error_msg }}</div>
+  {% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
   {% endif %}
 
-  {% if result_url %}
+  {# Resultado si existe #}
+  {% firstof result_url output_url result_image_url image_url as final_url %}
+  {% if final_url %}
     <div class="card bg-dark text-light border-0 shadow-sm mb-4">
       <div class="card-body">
         <h5 class="card-title">Resultado</h5>
-        <div class="ratio ratio-1x1" style="background:#111;border:1px solid #333;border-radius:8px;">
-          <img src="{{ result_url }}" alt="Imagen generada" style="object-fit:contain;width:100%;height:100%;border-radius:8px;">
+        <div class="ratio-1x1" style="background:#111;border:1px solid #333;border-radius:8px;">
+          <img src="{{ final_url }}" alt="Imagen generada">
         </div>
+
         <div class="mt-3 d-flex gap-2">
-          <a class="btn btn-primary" href="{{ result_url }}" download>Descargar</a>
-          <a class="btn btn-secondary" href="{% url 'view_options' subcategory.id %}">Generar otra</a>
+          <a class="btn btn-primary" href="{{ final_url }}" download>Descargar</a>
+          <a class="btn btn-outline-light" href="javascript:history.back()">Volver</a>
         </div>
-      </div>
-    </div>
-  {% else %}
-    <div class="card bg-dark text-light border-0 shadow-sm">
-      <div class="card-body">
-        <h5 class="card-title">Sube la foto del producto</h5>
-        <form method="post" enctype="multipart/form-data" class="mt-3">
-          {% csrf_token %}
-          <div class="mb-3">
-            <input class="form-control" type="file" name="photo" accept="image/*" required>
-            <div class="form-text">Usaremos tu foto como base. No se muestra ningún prompt.</div>
-          </div>
-          <button class="btn btn-primary" type="submit">Generar</button>
-          <a class="btn btn-secondary" href="{% url 'view_options' subcategory.id %}">Volver</a>
-        </form>
       </div>
     </div>
   {% endif %}
+
+  <div class="card bg-dark text-light border-0 shadow-sm">
+    <div class="card-body">
+      <h5 class="card-title mb-3">Subir foto del cliente</h5>
+
+      <form id="genForm" method="post" enctype="multipart/form-data" novalidate>
+        {% csrf_token %}
+
+        <div class="mb-3">
+          <label for="photo" class="form-label">Selecciona tu foto (requerido)</label>
+          <input class="form-control" type="file" id="photo" name="photo" accept="image/*" required>
+          <div class="form-text">Se aplicará el prompt interno de la vista elegida. No se muestran prompts al cliente.</div>
+        </div>
+
+        {% if subcategory %}<input type="hidden" name="subcategory_id" value="{{ subcategory.id }}">{% endif %}
+        {% if viewoption %}<input type="hidden" name="viewoption_id" value="{{ viewoption.id }}">{% endif %}
+
+        <div class="d-flex gap-2">
+          <button id="btnGenerate" type="submit" class="btn btn-primary">Generar</button>
+          <a class="btn btn-outline-light" href="javascript:history.back()">Volver</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
 </div>
+
+{# Overlay de carga #}
+<div id="loadingOverlay" role="status" aria-live="polite" aria-busy="true">
+  <div id="loadingBox">
+    <img src="{% static 'load-142_256.gif' %}" alt="Generando..." width="128" height="128">
+    <p>Generando tu imagen, por favor espera…</p>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const form = document.getElementById("genForm");
+    const overlay = document.getElementById("loadingOverlay");
+    const btn = document.getElementById("btnGenerate");
+    if (!form) return;
+
+    form.addEventListener("submit", function (e) {
+      const file = document.getElementById("photo").files[0];
+      if (!file) {
+        e.preventDefault();
+        alert("Por favor, selecciona una imagen.");
+        return;
+      }
+      overlay.style.display = "flex";
+      btn.disabled = true;
+      btn.textContent = "Generando…";
+    });
+
+    window.addEventListener("pageshow", function () {
+      overlay.style.display = "none";
+      if (btn) { btn.disabled = false; btn.textContent = "Generar"; }
+    });
+  })();
+</script>
 {% endblock %}

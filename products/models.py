@@ -1,68 +1,111 @@
-# products/models.py
-from django.db import models
-from django.utils.text import slugify
+from uuid import uuid4
+import os
+from datetime import datetime
 
-# ============
-# IMPORTANTE:
-# Estas funciones las necesitan migraciones antiguas.
-# No las borres, aunque tus modelos actuales no las usen.
-# ============
+from django.db import models
+from django.core.validators import MaxValueValidator, MinValueValidator
+
+
+# ----- Helpers de subida -----
+def _ext(filename: str) -> str:
+    return os.path.splitext(filename)[1].lower() or ".jpg"
+
+
+def upload_category_image(instance, filename):
+    today = datetime.now().strftime("%Y/%m/%d")
+    return f"category_images/{today}/{uuid4().hex}{_ext(filename)}"
+
+
+def upload_subcategory_image(instance, filename):
+    today = datetime.now().strftime("%Y/%m/%d")
+    return f"subcategory_images/{today}/{uuid4().hex}{_ext(filename)}"
+
+
 def upload_input_path(instance, filename):
-    # Ruta de subida para imágenes de entrada históricas (usadas por migraciones)
-    return f"uploads/input/{filename}"
+    today = datetime.now().strftime("%Y/%m/%d")
+    return f"generated_inputs/{today}/{uuid4().hex}{_ext(filename)}"
+
 
 def upload_output_path(instance, filename):
-    # Ruta de subida para imágenes de salida históricas (usadas por migraciones)
-    return f"uploads/output/{filename}"
+    today = datetime.now().strftime("%Y/%m/%d")
+    return f"generated_outputs/{today}/{uuid4().hex}{_ext(filename)}"
 
 
+# ----- Modelos -----
 class Category(models.Model):
     name = models.CharField(max_length=120, unique=True)
-    slug = models.SlugField(max_length=140, unique=True, blank=True)
-    # Archivo real (no URL)
-    image = models.ImageField(upload_to="category/", blank=True, null=True)
+    slug = models.SlugField(max_length=80, unique=True)
+    image = models.ImageField(upload_to=upload_category_image, blank=True, null=True)
+
+    # Orden editable (0..10)
+    sort_order = models.PositiveSmallIntegerField(
+        default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(10)],
+        db_index=True,
+        help_text="Orden de la categoría (0..10).",
+    )
 
     class Meta:
-        ordering = ["name"]
+        ordering = ("sort_order", "name")
+        verbose_name = "Category"
+        verbose_name_plural = "Categories"
 
     def __str__(self):
         return self.name
-
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = slugify(self.name)
-        super().save(*args, **kwargs)
 
 
 class Subcategory(models.Model):
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="subcategories")
     name = models.CharField(max_length=120)
-    slug = models.SlugField(max_length=160, blank=True)
-    image = models.ImageField(upload_to="subcategory/", blank=True, null=True)
+    slug = models.SlugField(max_length=80, unique=True)
+    image = models.ImageField(upload_to=upload_subcategory_image, blank=True, null=True)
+
+    # Orden editable (0..10)
+    sort_order = models.PositiveSmallIntegerField(
+        default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(10)],
+        db_index=True,
+        help_text="Orden de la subcategoría (0..10).",
+    )
 
     class Meta:
+        ordering = ("sort_order", "name")
         unique_together = ("category", "name")
-        ordering = ["name"]
+        verbose_name = "Subcategory"
+        verbose_name_plural = "Subcategories"
 
     def __str__(self):
         return f"{self.category.name} / {self.name}"
 
-    def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = slugify(self.name)
-        super().save(*args, **kwargs)
-
 
 class ViewOption(models.Model):
+    """
+    Opción de vista dentro de una subcategoría. Aquí guardas el PROMPT (privado).
+    """
     subcategory = models.ForeignKey(Subcategory, on_delete=models.CASCADE, related_name="view_options")
     name = models.CharField(max_length=120)
-    image = models.ImageField(upload_to="viewoption/", blank=True, null=True)
-    # Prompt secreto por vista (opcional)
-    prompt_override = models.TextField(blank=True, null=True, help_text="(Opcional) Prompt secreto para esta vista.")
+    # Prompt interno (no se enseña al cliente)
+    prompt = models.TextField(blank=True, default="")
 
     class Meta:
-        unique_together = ("subcategory", "name")
-        ordering = ["name"]
+        ordering = ("subcategory__sort_order", "name")
 
     def __str__(self):
         return f"{self.subcategory} / {self.name}"
+
+
+class GeneratedImage(models.Model):
+    """
+    Registro de generación: entrada del cliente + salida final (ya con borde de 50px).
+    """
+    subcategory = models.ForeignKey(Subcategory, on_delete=models.SET_NULL, null=True, blank=True)
+    viewoption = models.ForeignKey(ViewOption, on_delete=models.SET_NULL, null=True, blank=True)
+    input_image = models.ImageField(upload_to=upload_input_path, blank=True, null=True)
+    output_image = models.ImageField(upload_to=upload_output_path, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return f"Generated {self.pk} ({self.created_at:%Y-%m-%d %H:%M})"
