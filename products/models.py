@@ -1,111 +1,92 @@
-from uuid import uuid4
-import os
-from datetime import datetime
 
 from django.db import models
-from django.core.validators import MaxValueValidator, MinValueValidator
+from django.utils.text import slugify
 
 
-# ----- Helpers de subida -----
-def _ext(filename: str) -> str:
-    return os.path.splitext(filename)[1].lower() or ".jpg"
-
-
-def upload_category_image(instance, filename):
-    today = datetime.now().strftime("%Y/%m/%d")
-    return f"category_images/{today}/{uuid4().hex}{_ext(filename)}"
-
-
-def upload_subcategory_image(instance, filename):
-    today = datetime.now().strftime("%Y/%m/%d")
-    return f"subcategory_images/{today}/{uuid4().hex}{_ext(filename)}"
-
-
-def upload_input_path(instance, filename):
-    today = datetime.now().strftime("%Y/%m/%d")
-    return f"generated_inputs/{today}/{uuid4().hex}{_ext(filename)}"
-
-
-def upload_output_path(instance, filename):
-    today = datetime.now().strftime("%Y/%m/%d")
-    return f"generated_outputs/{today}/{uuid4().hex}{_ext(filename)}"
-
-
-# ----- Modelos -----
 class Category(models.Model):
-    name = models.CharField(max_length=120, unique=True)
-    slug = models.SlugField(max_length=80, unique=True)
-    image = models.ImageField(upload_to=upload_category_image, blank=True, null=True)
-
-    # Orden editable (0..10)
-    sort_order = models.PositiveSmallIntegerField(
-        default=0,
-        validators=[MinValueValidator(0), MaxValueValidator(10)],
-        db_index=True,
-        help_text="Orden de la categoría (0..10).",
-    )
+    name = models.CharField(max_length=150, unique=True)
+    slug = models.SlugField(max_length=200, unique=True, db_index=True)
+    # Imagen: si usas URL en admin, deja image_url; si usas archivos, cambia a ImageField
+    image_url = models.URLField(blank=True, null=True)
+    sort_order = models.PositiveSmallIntegerField(default=10)
 
     class Meta:
-        ordering = ("sort_order", "name")
-        verbose_name = "Category"
-        verbose_name_plural = "Categories"
+        ordering = ["sort_order", "name"]
+        verbose_name = "Categoría"
+        verbose_name_plural = "Categorías"
 
     def __str__(self):
         return self.name
 
+    def save(self, *args, **kwargs):
+        # Autogenera slug si está vacío (no pisa uno existente)
+        if not self.slug:
+            base = slugify(self.name) or "categoria"
+            s = base
+            i = 2
+            while Category.objects.filter(slug=s).exclude(pk=self.pk).exists():
+                s = f"{base}-{i}"
+                i += 1
+            self.slug = s
+        super().save(*args, **kwargs)
+
 
 class Subcategory(models.Model):
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="subcategories")
-    name = models.CharField(max_length=120)
-    slug = models.SlugField(max_length=80, unique=True)
-    image = models.ImageField(upload_to=upload_subcategory_image, blank=True, null=True)
-
-    # Orden editable (0..10)
-    sort_order = models.PositiveSmallIntegerField(
-        default=0,
-        validators=[MinValueValidator(0), MaxValueValidator(10)],
-        db_index=True,
-        help_text="Orden de la subcategoría (0..10).",
-    )
+    name = models.CharField(max_length=150)
+    slug = models.SlugField(max_length=200, db_index=True)
+    image_url = models.URLField(blank=True, null=True)
+    sort_order = models.PositiveSmallIntegerField(default=10)
 
     class Meta:
-        ordering = ("sort_order", "name")
-        unique_together = ("category", "name")
-        verbose_name = "Subcategory"
-        verbose_name_plural = "Subcategories"
+        ordering = ["category__sort_order", "category__name", "sort_order", "name"]
+        verbose_name = "Subcategoría"
+        verbose_name_plural = "Subcategorías"
+        constraints = [
+            models.UniqueConstraint(fields=["category", "slug"], name="uniq_subcat_per_cat"),
+        ]
 
     def __str__(self):
         return f"{self.category.name} / {self.name}"
 
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            base = slugify(self.name) or "subcategoria"
+            s = base
+            i = 2
+            # Única por categoría
+            while Subcategory.objects.filter(category=self.category, slug=s).exclude(pk=self.pk).exists():
+                s = f"{base}-{i}"
+                i += 1
+            self.slug = s
+        super().save(*args, **kwargs)
+
 
 class ViewOption(models.Model):
-    """
-    Opción de vista dentro de una subcategoría. Aquí guardas el PROMPT (privado).
-    """
-    subcategory = models.ForeignKey(Subcategory, on_delete=models.CASCADE, related_name="view_options")
-    name = models.CharField(max_length=120)
-    # Prompt interno (no se enseña al cliente)
-    prompt = models.TextField(blank=True, default="")
+    subcategory = models.ForeignKey(Subcategory, on_delete=models.CASCADE, related_name="viewoptions")
+    name = models.CharField(max_length=150)
+    prompt = models.TextField(blank=True, null=True)
+    sort_order = models.PositiveSmallIntegerField(default=10)
 
     class Meta:
-        ordering = ("subcategory__sort_order", "name")
+        ordering = ["subcategory__category__sort_order", "subcategory__sort_order", "sort_order", "name"]
+        verbose_name = "Vista"
+        verbose_name_plural = "Vistas"
 
     def __str__(self):
-        return f"{self.subcategory} / {self.name}"
+        return f"{self.subcategory.category.name} / {self.subcategory.name} / {self.name}"
 
 
 class GeneratedImage(models.Model):
-    """
-    Registro de generación: entrada del cliente + salida final (ya con borde de 50px).
-    """
+    category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
     subcategory = models.ForeignKey(Subcategory, on_delete=models.SET_NULL, null=True, blank=True)
     viewoption = models.ForeignKey(ViewOption, on_delete=models.SET_NULL, null=True, blank=True)
-    input_image = models.ImageField(upload_to=upload_input_path, blank=True, null=True)
-    output_image = models.ImageField(upload_to=upload_output_path, blank=True, null=True)
+    input_image = models.FileField(upload_to="inputs/", blank=True, null=True)
+    output_image = models.FileField(upload_to="outputs/", blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ("-created_at",)
+        ordering = ["-created_at"]
 
     def __str__(self):
-        return f"Generated {self.pk} ({self.created_at:%Y-%m-%d %H:%M})"
+        return f"Gen #{self.pk} ({self.created_at:%Y-%m-%d %H:%M})"
