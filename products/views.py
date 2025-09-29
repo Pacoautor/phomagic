@@ -1,99 +1,102 @@
 # products/views.py
-from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
-from django.contrib import messages
-from django.conf import settings
-from django.core.files.storage import default_storage
-from django.core.files.base import ContentFile
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404, render
 from .models import Category, Subcategory, ViewOption, GeneratedImage
-import os
-import re
-from uuid import uuid4
 
-@login_required
-def generate_photo(request, subcategory_id, viewoption_id):
+
+def home(request):
     """
-    Sube la foto del cliente y genera una imagen aplicando el prompt
-    definido por la vista elegida. Nunca muestra el prompt al usuario.
+    Portada con el listado de categorías.
+    """
+    categories = Category.objects.all().order_by("name")
+    # Si ya tienes templates/home.html, úsalo; si no, usamos uno de fallback simple.
+    try:
+        return render(request, "home.html", {"categories": categories})
+    except Exception:
+        # Fallback mínimo para no romper mientras haces migraciones
+        items = "<br>".join([c.name for c in categories]) or "(sin categorías)"
+        return HttpResponse(f"<h1>Categorías</h1><div>{items}</div>")
+
+
+def category_detail(request, category_slug=None, category_id=None):
+    """
+    Detalle de categoría con subcategorías.
+    Admite id o slug (usa lo que tengas en tu BD).
+    """
+    category = None
+    if category_id:
+        category = get_object_or_404(Category, id=category_id)
+    elif category_slug and hasattr(Category, "slug"):
+        category = get_object_or_404(Category, slug=category_slug)
+    else:
+        # Si no tienes slug en Category, intenta por nombre en mayúsculas que usas en la BD
+        category = get_object_or_404(Category, name__iexact=category_slug or "")
+
+    subcats = Subcategory.objects.filter(category=category).order_by("name")
+    # Si existe plantilla, úsala
+    template_candidates = [
+        "products/category_detail.html",
+        "category_detail.html",
+        "home.html",  # al menos muestra algo con tu base
+    ]
+    context = {"category": category, "subcategories": subcats}
+    for t in template_candidates:
+        try:
+            return render(request, t, context)
+        except Exception:
+            continue
+    # Fallback
+    items = "<br>".join([s.name for s in subcats]) or "(sin subcategorías)"
+    return HttpResponse(f"<h1>{category.name}</h1><div>{items}</div>")
+
+
+def view_options(request, subcategory_id):
+    """
+    Lista de vistas disponibles para una subcategoría.
     """
     subcategory = get_object_or_404(Subcategory, id=subcategory_id)
-    viewopt = get_object_or_404(ViewOption, id=viewoption_id, subcategory=subcategory)
-    category = subcategory.category  # padre
+    views_qs = ViewOption.objects.filter(subcategory=subcategory).order_by("name")
+    # Intenta tu plantilla si existe
+    template_candidates = [
+        "products/view_options.html",
+        "view_options.html",
+        "home.html",
+    ]
+    context = {"subcategory": subcategory, "view_options": views_qs}
+    for t in template_candidates:
+        try:
+            return render(request, t, context)
+        except Exception:
+            continue
+    # Fallback
+    items = "<br>".join([v.name for v in views_qs]) or "(sin vistas)"
+    return HttpResponse(f"<h1>{subcategory}</h1><div>{items}</div>")
 
-    if request.method == "POST":
-        upload = request.FILES.get("photo")
-        if not upload:
-            messages.error(request, "Debes subir una imagen.")
-            return redirect("generate_photo", subcategory_id=subcategory.id, viewoption_id=viewopt.id)
 
-        # Guardar temporalmente la imagen subida
-        # (Render usa almacenamiento de archivos; MEDIA_ROOT ya está configurado)
-        original_name = upload.name or "upload.jpg"
-        original_stem, ext = os.path.splitext(original_name)
+@login_required
+def generate_photo(request, subcategory_id, view_id):
+    """
+    Vista de generación. Dejo un cuerpo mínimo para no romper migraciones ni despliegues.
+    Cuando esté todo migrado, ya conectamos tu flujo de subida y edición.
+    """
+    subcategory = get_object_or_404(Subcategory, id=subcategory_id)
+    viewopt = get_object_or_404(ViewOption, id=view_id, subcategory=subcategory)
 
-        # Sanitizar nombre base para evitar caracteres raros en el path
-        def slugify_light(s):
-            s = re.sub(r"\s+", "-", s.strip().lower())
-            s = re.sub(r"[^a-z0-9\-]+", "", s)
-            return s or "img"
-
-        safe_stem = slugify_light(original_stem)
-
-        # ⚠️ Aquí estaba el fallo: NO usar subcategory.slug porque no existe.
-        # Usamos el id de la subcategoría (y el slug de categoría si existe).
-        cat_part = getattr(category, "slug", None) or str(category.id)
-        base_id = f"{cat_part}_{subcategory.id}_{viewopt.id}_{safe_stem}_{uuid4().hex[:8]}"
-
-        rel_input_path = f"uploads/{base_id}{ext or '.jpg'}"
-        saved_path = default_storage.save(rel_input_path, ContentFile(upload.read()))
-        abs_input_path = default_storage.path(saved_path)
-
-        # --- Preparar prompt maestro (se mantiene oculto al usuario) ---
-        master_prompt = viewopt.prompt or ""
-        negative_prompt = getattr(viewopt, "negative_prompt", "") or ""
-        strength = getattr(viewopt, "strength", 0.8)
-
-        # === Aquí iría tu llamada real a la API de imagen (edit/inpaint) ===
-        # Para no tocar tu integración, dejamos un “passthrough” que simplemente
-        # publica la imagen subida y devuelve su URL como “resultado”.
-        # Sustituye esta parte por tu llamada a OpenAI/Stable Diffusion/etc.
-        output_rel_path = f"generated/{base_id}.jpg"
-        with open(abs_input_path, "rb") as f:
-            default_storage.save(output_rel_path, ContentFile(f.read()))
-        result_url = default_storage.url(output_rel_path)
-
-        # Registrar en BD
-        GeneratedImage.objects.create(
-            user=request.user,
-            category=category,
-            subcategory=subcategory,
-            view_option=viewopt,
-            input_image=rel_input_path,      # se guarda ruta relativa en el FileField
-            output_image=output_rel_path,    # idem
-            prompt_used=master_prompt,
-            negative_prompt=negative_prompt,
-            strength=strength,
-        )
-
-        messages.success(request, "Imagen generada correctamente.")
-        return render(
-            request,
-            "products/upload_photo.html",
-            {
-                "category": category,
-                "subcategory": subcategory,
-                "viewoption": viewopt,
-                "result_url": result_url,  # la plantilla ya lo sabe mostrar/descargar
-            },
-        )
-
-    # GET: mostrar formulario de subida
-    return render(
-        request,
-        "products/upload_photo.html",
-        {
-            "category": category,
-            "subcategory": subcategory,
-            "viewoption": viewopt,
-        },
-    )
+    # Si tienes la plantilla products/upload_photo.html se usará;
+    # si no, devolvemos un formulario mínimo de fallback.
+    context = {"subcategory": subcategory, "viewoption": viewopt}
+    try:
+        return render(request, "products/upload_photo.html", context)
+    except Exception:
+        html = f"""
+        <h1>Generar imagen</h1>
+        <p>Subcategoría: {subcategory}</p>
+        <p>Vista: {viewopt.name}</p>
+        <form method="post" enctype="multipart/form-data">
+          <input type="hidden" name="csrfmiddlewaretoken" value="">
+          <input type="file" name="photo" accept="image/*">
+          <button type="submit">Subir</button>
+        </form>
+        """
+        return HttpResponse(html)
