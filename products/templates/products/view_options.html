@@ -1,11 +1,8 @@
 {% extends "base.html" %}
-{% load static %}
 {% block title %}Vistas – {{ subcategory.category.name }} / {{ subcategory.name }}{% endblock %}
-
 {% block content %}
 <div class="container my-4">
   <h1 class="mb-4">Vistas disponibles – {{ subcategory.category.name|upper }} / {{ subcategory.name }}</h1>
-
   <div class="row g-4">
     {% for opt in options %}
       <div class="col-12 col-md-4">
@@ -13,7 +10,7 @@
           {% if opt.image %}
             <img src="{{ opt.image.url }}" class="card-img-top" alt="{{ opt.name }}">
           {% else %}
-            <img src="{% static 'img/placeholder-800x800.jpg' %}" class="card-img-top" alt="{{ opt.name }}">
+            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABQAAAAMgCAYAAABHk2vTAAA..." class="card-img-top" alt="{{ opt.name }}">
           {% endif %}
           <div class="card-body d-flex flex-column">
             <h5 class="card-title">{{ opt.name }}</h5>
@@ -27,7 +24,6 @@
       <p>No hay vistas disponibles.</p>
     {% endfor %}
   </div>
-
   <a class="btn btn-secondary mt-3" href="{% url 'category_detail' subcategory.category.slug %}">Volver</a>
 </div>
 {% endblock %}

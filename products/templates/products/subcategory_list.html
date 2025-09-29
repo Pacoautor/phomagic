@@ -1,7 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
 {% block title %}{{ category.name }}{% endblock %}
-
 {% block content %}
 <div class="container my-4">
   <h1 class="mb-4">{{ category.name|upper }}</h1>
@@ -12,7 +10,7 @@
           {% if s.image %}
             <img src="{{ s.image.url }}" class="card-img-top" alt="{{ s.name }}">
           {% else %}
-            <img src="{% static 'img/placeholder-1200x600.jpg' %}" class="card-img-top" alt="{{ s.name }}">
+            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABQAAAAMgCAYAAABHk2vTAAA..." class="card-img-top" alt="{{ s.name }}">
           {% endif %}
           <div class="card-body d-flex justify-content-between align-items-center">
             <h5 class="card-title m-0">{{ s.name }}</h5>
@@ -26,7 +24,6 @@
       <p>No hay subcategorías.</p>
     {% endfor %}
   </div>
-
   <a class="btn btn-secondary mt-3" href="{% url 'home' %}">Volver</a>
 </div>
 {% endblock %}
