@@ -1,6 +1,5 @@
 {% extends "base.html" %}
 {% load static %}
-
 {% block title %}Generar imagen{% endblock %}
 
 {% block content %}
@@ -8,93 +7,44 @@
 
   <h1 class="mb-3">
     Generar imagen
-    {% if subcategory %}<small class="text-muted">– {{ subcategory.category.name }} / {{ subcategory.name }}</small>{% endif %}
-    {% firstof viewoption.name viewopt.name as vo_name %}
-    {% if vo_name %}<small class="text-muted"> / {{ vo_name }}</small>{% endif %}
+    <small class="text-muted">– {{ subcategory.category.name }} / {{ subcategory.name }} / {{ viewoption.name }}</small>
   </h1>
 
-  {# Si ya tenemos resultado, lo mostramos (elige la primera variable existente sin romper si falta) #}
-  {% firstof result_url output_url result_image_url image_url as final_url %}
-  {% if final_url %}
+  {% if error_msg %}
+    <div class="alert alert-danger">{{ error_msg }}</div>
+  {% endif %}
+
+  {# Si hay resultado, lo mostramos #}
+  {% if result_url %}
     <div class="card bg-dark text-light border-0 shadow-sm mb-4">
       <div class="card-body">
         <h5 class="card-title">Resultado</h5>
         <div class="ratio ratio-1x1" style="background:#111;border:1px solid #333;border-radius:8px;">
-          <img src="{{ final_url }}" alt="Imagen generada" style="object-fit:contain;width:100%;height:100%;border-radius:8px;">
+          <img src="{{ result_url }}" alt="Imagen generada" style="object-fit:contain;width:100%;height:100%;border-radius:8px;">
         </div>
 
         <div class="mt-3 d-flex gap-2">
-          <a class="btn btn-primary" href="{{ final_url }}" download>Descargar</a>
-          <a class="btn btn-outline-secondary" href="">Generar otra</a>
-          {% if subcategory %}
-            <a class="btn btn-outline-light" href="{% url 'view_options' subcategory.id %}">Volver a vistas</a>
-          {% else %}
-            <a class="btn btn-outline-light" href="/">Inicio</a>
-          {% endif %}
+          <a class="btn btn-primary" href="{{ result_url }}" download>Descargar</a>
+          <a class="btn btn-secondary" href="{% url 'view_options' subcategory.id %}">Generar otra</a>
         </div>
       </div>
     </div>
-
   {% else %}
-
-    {# Formulario de subida (no mostrar prompts al cliente) #}
+    {# Formulario de subida #}
     <div class="card bg-dark text-light border-0 shadow-sm">
       <div class="card-body">
-        <h5 class="card-title mb-3">Sube tu foto</h5>
-
-        <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
+        <h5 class="card-title">Sube la foto del producto</h5>
+        <form method="post" enctype="multipart/form-data" class="mt-3">
           {% csrf_token %}
-
           <div class="mb-3">
-            <label for="photo" class="form-label">Imagen del cliente (JPG/PNG/WebP)</label>
-            <input class="form-control" type="file" id="photo" name="photo" accept="image/*" required>
-            <div class="form-text">Se aplicará el estilo definido por la vista elegida.</div>
-            <div class="invalid-feedback">Selecciona una imagen.</div>
+            <input class="form-control" type="file" name="photo" accept="image/*" required>
+            <div class="form-text">Se usará tu foto como base. No se muestra ningún prompt.</div>
           </div>
-
-          {# Opcional: quitar fondo
-          <div class="form-check mb-3">
-            <input class="form-check-input" type="checkbox" value="1" id="remove_background" name="remove_background">
-            <label class="form-check-label" for="remove_background">Quitar fondo</label>
-          </div>
-          #}
-
-          <div id="previewWrap" class="mb-3 d-none">
-            <label class="form-label">Previsualización</label>
-            <div class="ratio ratio-1x1" style="background:#111;border:1px solid #333;border-radius:8px;">
-              <img id="previewImg" alt="Previsualización" style="object-fit:contain;width:100%;height:100%;border-radius:8px;">
-            </div>
-          </div>
-
-          <button type="submit" class="btn btn-primary">Generar</button>
-          {% if subcategory %}
-            <a href="{% url 'view_options' subcategory.id %}" class="btn btn-outline-secondary ms-2">Volver</a>
-          {% else %}
-            <a href="/" class="btn btn-outline-secondary ms-2">Inicio</a>
-          {% endif %}
+          <button class="btn btn-primary" type="submit">Generar</button>
+          <a class="btn btn-secondary" href="{% url 'view_options' subcategory.id %}">Volver</a>
         </form>
       </div>
     </div>
-
-    <script>
-      (function () {
-        const input = document.getElementById('photo');
-        const wrap  = document.getElementById('previewWrap');
-        const img   = document.getElementById('previewImg');
-        if (!input) return;
-        input.addEventListener('change', function () {
-          if (this.files && this.files[0]) {
-            const url = URL.createObjectURL(this.files[0]);
-            img.src = url;
-            wrap.classList.remove('d-none');
-          } else {
-            wrap.classList.add('d-none');
-            img.removeAttribute('src');
-          }
-        });
-      })();
-    </script>
-
   {% endif %}
 
 </div>
