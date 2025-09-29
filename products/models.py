@@ -1,4 +1,42 @@
 
+# --- Rutas de subida usadas por migraciones antiguas ---
+import os
+from django.utils.text import slugify
+
+def _safe_slug(obj, fallback: str) -> str:
+    """
+    Intenta obtener un slug razonable desde instance.slug o instance.name.
+    Si no puede, usa el fallback. Nunca devuelve cadena vacía.
+    """
+    try:
+        s = getattr(obj, "slug", None) or getattr(obj, "name", None) or fallback
+    except Exception:
+        s = fallback
+    s = slugify(str(s)) or fallback
+    return s
+
+def upload_category_image(instance, filename):
+    # p.ej: uploads/categories/moda/archivo.jpg
+    base = _safe_slug(instance, "category")
+    return os.path.join("uploads", "categories", base, filename)
+
+def upload_subcategory_image(instance, filename):
+    # p.ej: uploads/subcategories/camisetas/archivo.jpg
+    base = _safe_slug(instance, "subcategory")
+    return os.path.join("uploads", "subcategories", base, filename)
+
+def upload_generated_input(instance, filename):
+    # p.ej: uploads/generated/input/archivo.jpg
+    return os.path.join("uploads", "generated", "input", filename)
+
+def upload_generated_output(instance, filename):
+    # p.ej: uploads/generated/output/archivo.jpg
+    return os.path.join("uploads", "generated", "output", filename)
+# --- fin stubs ---
+
+
+
+
 from django.db import models
 from django.utils.text import slugify
 
