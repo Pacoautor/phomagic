@@ -1,17 +1,17 @@
-
-# products/urls.py
 from django.urls import path
+from django.contrib.auth.decorators import login_required
 from . import views as pviews
 
 urlpatterns = [
-    path("", pviews.home, name="home"),
+    # Home (categorías) – requiere login
+    path("", login_required(pviews.home), name="home"),
 
-    # Lista de subcategorías de una categoría (por slug)
-    path("c/<slug:category_slug>/", pviews.category_detail, name="category_detail"),
+    # Detalle de categoría (subcategorías) – requiere login
+    path("c/<slug:category_slug>/", login_required(pviews.category_detail), name="category_detail"),
 
-    # Lista de vistas disponibles para una subcategoría
-    path("v/<int:subcategory_id>/", pviews.view_options, name="view_options"),
+    # Listado de vistas de una subcategoría – requiere login
+    path("v/<int:subcategory_id>/", login_required(pviews.view_options), name="view_options"),
 
-    # Formulario de generación (subcategory + view)
-    path("g/<int:subcategory_id>/<int:view_id>/", pviews.generate_photo, name="generate_photo"),
+    # Generación – requiere login (por si alguien enlaza directo)
+    path("g/<int:subcategory_id>/<int:view_id>/", login_required(pviews.generate_photo), name="generate_photo"),
 ]
