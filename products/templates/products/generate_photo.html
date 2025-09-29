@@ -5,61 +5,38 @@
 
 {% block content %}
 <div class="container py-4">
-  <h1 class="mb-3">Generar foto – {{ subcategory.category.name }} / {{ subcategory.name }}</h1>
+  <h1 class="mb-4">Generar foto – {{ subcategory.category.name }} / {{ subcategory.name }}</h1>
 
-  <form method="post" enctype="multipart/form-data" class="mt-3">
+  <form method="post" enctype="multipart/form-data" class="card bg-dark text-light border-0 shadow-sm p-4">
     {% csrf_token %}
 
-    <!-- Prompt -->
-    <div class="mb-3">
-      <label class="form-label">Prompt principal</label>
-      <textarea name="final_prompt" class="form-control" rows="3"
-                placeholder="Describe cómo quieres la imagen…">{{ final_prompt }}</textarea>
-    </div>
+    <!-- Prompt principal: NO visible para el cliente. Lo obtenemos del servidor.
+         Si quieres, dejamos un input hidden para trazas mínimas; puede omitirse y el servidor
+         igualmente tomará el prompt desde la DB. -->
+    {% if final_prompt %}
+      <input type="hidden" name="__prompt_shadow" value="1">
+    {% endif %}
 
-    <!-- Vista elegida (solo lectura) -->
     <div class="mb-3">
       <label class="form-label">Vista elegida</label>
-      <input type="text" class="form-control" value="{{ viewopt.name }}" disabled>
-      <!-- valores reales que necesita la vista en el POST -->
-      <input type="hidden" name="subcategory_id" value="{{ subcategory.id }}">
-      <input type="hidden" name="view_id" value="{{ viewopt.id }}">
+      <input class="form-control" value="{{ viewopt.name }}" disabled>
     </div>
 
-    <!-- Imagen base del usuario -->
     <div class="mb-3">
-      <label class="form-label">Imagen base (opcional, JPG/PNG/WebP)</label>
-      <input type="file" name="product_photo" class="form-control"
-             accept="image/png,image/jpeg,image/webp">
+      <label class="form-label">Imagen base del cliente (obligatoria)</label>
+      <input class="form-control" type="file" name="product_photo" accept="image/*" required>
+      <div class="form-text">Sube la foto del producto; aplicaremos automáticamente el estilo/ajustes de esta vista.</div>
     </div>
 
-    <!-- Referencia del master prompt (si existe) -->
     {% if master_prompt_photo %}
       <div class="mb-3">
-        <label class="form-label">Foto de referencia (plantilla)</label><br>
-        <img src="{{ master_prompt_photo.url }}" alt="Referencia"
-             style="max-width:280px;height:auto;border:1px solid #333;border-radius:6px;">
+        <label class="form-label">Referencia interna (no visible al cliente)</label><br>
+        <img src="{{ master_prompt_photo.url }}" alt="Referencia" style="max-width:280px; height:auto; border:1px solid #333; border-radius:6px;">
       </div>
     {% endif %}
 
     <button type="submit" class="btn btn-primary">Generar</button>
-    <a href="{% url 'view_options' subcategory.id %}"
-       class="btn btn-outline-secondary ms-2">Volver</a>
+    <a href="{% url 'view_options' subcategory.id %}" class="btn btn-outline-secondary ms-2">Volver</a>
   </form>
-
-  <!-- Imagen generada -->
-  {% if generated_image_url %}
-    <div class="mt-5 text-center">
-      <h3>Resultado generado</h3>
-      <img src="{{ generated_image_url }}" alt="Imagen generada"
-           style="max-width:100%;height:auto;border:2px solid #444;border-radius:10px;">
-      <div class="mt-3">
-        <a href="{{ generated_image_url }}" class="btn btn-success" download>
-          Descargar imagen
-        </a>
-      </div>
-    </div>
-  {% endif %}
-
 </div>
 {% endblock %}
