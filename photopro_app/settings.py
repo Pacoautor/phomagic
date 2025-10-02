@@ -60,8 +60,9 @@ INSTALLED_APPS = [
     "allauth.account",
     "allauth.socialaccount",
 
-    # Aplicaciones locales
-    "products", # Tu app principal de la tienda
+    # Apps locales
+    "products",
+    "catalog",  # ← añadido
 ]
 
 SITE_ID = 1
