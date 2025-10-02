@@ -1,3 +1,4 @@
+
 # products/models.py  — REEMPLAZA TODO EL ARCHIVO CON ESTO
 
 import os
@@ -43,7 +44,13 @@ def upload_output_path(instance, filename):
 class Category(models.Model):
     name = models.CharField(max_length=150, unique=True)
     slug = models.SlugField(max_length=200, unique=True, db_index=True)
+
+    # Existía en migraciones: lo reponemos (opcional)
+    image = models.ImageField(upload_to=upload_category_image, blank=True, null=True)
+
+    # Tu campo actual (lo mantenemos)
     image_url = models.URLField(blank=True, null=True)
+
     sort_order = models.PositiveSmallIntegerField(default=10)
 
     class Meta:
@@ -70,6 +77,10 @@ class Subcategory(models.Model):
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="subcategories")
     name = models.CharField(max_length=150)
     slug = models.SlugField(max_length=200, db_index=True)
+
+    # También existía en migraciones antiguas: lo reponemos (opcional)
+    image = models.ImageField(upload_to=upload_subcategory_image, blank=True, null=True)
+
     image_url = models.URLField(blank=True, null=True)
     sort_order = models.PositiveSmallIntegerField(default=10)
 
@@ -121,11 +132,9 @@ class GeneratedImage(models.Model):
     subcategory = models.ForeignKey(Subcategory, on_delete=models.SET_NULL, null=True, blank=True)
     viewoption = models.ForeignKey(ViewOption, on_delete=models.SET_NULL, null=True, blank=True)
 
-    # Campos de ficheros — rutas simples y claras
     input_image = models.FileField(upload_to="inputs/", blank=True, null=True)
     output_image = models.FileField(upload_to="outputs/", blank=True, null=True)
 
-    # ⬇⬇⬇ ESTE CAMPO ES EL QUE EL ADMIN NECESITA
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
