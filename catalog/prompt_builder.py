@@ -1,17 +1,20 @@
-# catalog/prompt_builder.py
-
 from textwrap import dedent
 
 def _shadow_human(shadow: dict) -> str:
     if not shadow or not shadow.get("enabled", False):
         return "sin sombra."
-    # ejemplo humano con tus valores tipo Photoshop
+    # Texto estilo Photoshop pero en humano
+    try:
+        op = int(float(shadow.get('opacity', 0.43)) * 100)
+    except Exception:
+        op = 43
+    ang = int(shadow.get('angle', 90) or 90)
+    dist = int(shadow.get('distance', 18) or 18)
+    size = int(shadow.get('size', 21) or 21)
+    mode = shadow.get('mode', 'multiply') or 'multiply'
     return (
-        f"sombra realista modo {shadow.get('mode','multiply')}, "
-        f"opacidad {int(shadow.get('opacity',0.43)*100)}%, "
-        f"ángulo {shadow.get('angle',90)}°, "
-        f"distancia {shadow.get('distance',18)}px, "
-        f"tamaño {shadow.get('size',21)}px."
+        f"sombra realista modo {mode}, "
+        f"opacidad {op}%, ángulo {ang}°, distancia {dist}px, tamaño {size}px."
     )
 
 def _common_header(size, bg_hex, shadow):
@@ -20,7 +23,7 @@ def _common_header(size, bg_hex, shadow):
     {_shadow_human(shadow)}
     Mantén colores, estampados y detalles fieles al original; no inventes ni elimines.
     Salida exacta {size['width']}x{size['height']} px, centrado y simetría correctos.
-    """)
+    """).strip()
 
 def _view_estirada(size, bg_hex, shadow):
     body = dedent("""
@@ -29,8 +32,8 @@ def _view_estirada(size, bg_hex, shadow):
     - Mangas rectas hacia abajo, sin pliegues ni dobleces.
     - Cuello en su forma natural, erguido.
     - Caída plana, sin volumen interno.
-    """)
-    return _common_header(size, bg_hex, shadow) + "\n" + body
+    """).strip()
+    return _common_header(size, bg_hex, shadow) + "\n\n" + body
 
 def _view_plegada(size, bg_hex, shadow):
     body = dedent("""
@@ -38,8 +41,8 @@ def _view_plegada(size, bg_hex, shadow):
     - Planchar: sin arrugas, textura nítida.
     - Plegado final cuadrado: dobladillo al cuello; mangas hacia el centro; pliegue horizontal para formar cuadrado compacto.
     - Presentación ordenada, lista para empaquetado.
-    """)
-    return _common_header(size, bg_hex, shadow) + "\n" + body
+    """).strip()
+    return _common_header(size, bg_hex, shadow) + "\n\n" + body
 
 def _view_maniqui_invisible(size, bg_hex, shadow):
     body = dedent("""
@@ -47,8 +50,8 @@ def _view_maniqui_invisible(size, bg_hex, shadow):
     - Volumen 3D realista como si hubiera torso invisible.
     - Mangas cilíndricas con volumen natural; hombros definidos; laterales con caída natural.
     - Sin arrugas; textura y bordes nítidos.
-    """)
-    return _common_header(size, bg_hex, shadow) + "\n" + body
+    """).strip()
+    return _common_header(size, bg_hex, shadow) + "\n\n" + body
 
 VIEW_PROMPTS = {
     "estirada": _view_estirada,
@@ -57,7 +60,10 @@ VIEW_PROMPTS = {
 }
 
 def build_prompts(job: dict):
-    """Devuelve una lista de tareas por vista con el prompt generado."""
+    """
+    Devuelve una lista de tareas por vista con el prompt generado.
+    Estructura: [{ "view_id": ..., "prompt": ... }, ...]
+    """
     opts = job["client_options"]
     size = opts["size_px"]
     bg_hex = opts["background"]["hex"]
@@ -68,8 +74,5 @@ def build_prompts(job: dict):
         fn = VIEW_PROMPTS.get(vid)
         if not fn:
             continue
-        tasks.append({
-            "view_id": vid,
-            "prompt": fn(size, bg_hex, shadow),
-        })
+        tasks.append({"view_id": vid, "prompt": fn(size, bg_hex, shadow)})
     return tasks
