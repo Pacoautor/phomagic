@@ -5,13 +5,11 @@ from django.views.decorators.csrf import csrf_exempt
 
 from .catalog_config import CATALOG, DEFAULTS
 from .prompt_builder import build_prompts
+from .generate_service import generate_views_from_job
 
 HEX_RE = re.compile(r"^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$")
 
 def get_catalog(request):
-    """
-    Devuelve el catálogo mínimo + opciones por defecto para poblar la UI.
-    """
     data = {
         "catalog": CATALOG,
         "defaults": DEFAULTS,
@@ -23,10 +21,6 @@ def get_catalog(request):
     return JsonResponse(data, json_dumps_params={"ensure_ascii": False})
 
 def _validate_and_build_job(payload: dict):
-    """
-    Valida el payload de job y devuelve (ok, error_message, job_dict).
-    Reutilizada por build_job y prepare_job para que sean consistentes.
-    """
     category    = payload.get("category")
     subcategory = payload.get("subcategory")
     views_sel   = payload.get("views", [])
@@ -80,9 +74,6 @@ def _validate_and_build_job(payload: dict):
 
 @csrf_exempt
 def build_job(request):
-    """
-    Valida la selección del cliente y devuelve un JOB JSON listo para el pipeline.
-    """
     if request.method != "POST":
         return HttpResponseBadRequest("POST only")
     try:
@@ -99,12 +90,6 @@ def build_job(request):
 
 @csrf_exempt
 def prepare_job(request):
-    """
-    Recibe el mismo JSON que /api/job/validate/ y devuelve:
-    - job validado
-    - view_tasks: lista de {view_id, prompt} por cada vista solicitada
-    (No llama a OpenAI; solo construye prompts).
-    """
     if request.method != "POST":
         return HttpResponseBadRequest("POST only")
     try:
@@ -119,5 +104,33 @@ def prepare_job(request):
     view_tasks = build_prompts(job)
     return JsonResponse(
         {"ok": True, "job": job, "view_tasks": view_tasks},
+        json_dumps_params={"ensure_ascii": False, "indent": 2}
+    )
+
+@csrf_exempt
+def generate_job(request):
+    """
+    Genera imagen(es) por cada vista usando OpenAI gpt-image-1.
+    Devuelve: { ok, job, results: [ {view_id, image_b64, model_size} ] }
+    """
+    if request.method != "POST":
+        return HttpResponseBadRequest("POST only")
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return HttpResponseBadRequest("JSON inválido")
+
+    ok, err, job = _validate_and_build_job(payload)
+    if not ok:
+        return HttpResponseBadRequest(err)
+
+    try:
+        results = generate_views_from_job(job)
+    except Exception as e:
+        # Puedes registrar el error en logs/monitorización aquí
+        return HttpResponseBadRequest(f"Fallo al generar imágenes: {e}")
+
+    return JsonResponse(
+        {"ok": True, "job": job, "results": results},
         json_dumps_params={"ensure_ascii": False, "indent": 2}
     )
