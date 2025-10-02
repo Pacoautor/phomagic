@@ -137,4 +137,4 @@ class GeneratedImage(models.Model):
     subcategory = models.ForeignKey(Subcategory, on_delete=models.SET_NULL, null=True, blank=True)
     viewoption = models.ForeignKey(ViewOption, on_delete=models.SET_NULL, null=True, blank=True)
     input_image = models.FileField(upload_to="inputs/", blank=True, null=True)
-    output_image = models.FileField(upload_to="
+    output_image = models.FileField(upload_to="outputs/", blank=True, null=True)
