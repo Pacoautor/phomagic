@@ -27,19 +27,10 @@ class Migration(migrations.Migration):
             options={'ordering': ['subcategory__category__name', 'subcategory__name', 'name']},
         ),
 
-        # REMOVIDO: estas líneas daban error en Render porque el campo 'image' no existía en ese estado limpio.
-        # migrations.RemoveField(
-        #     model_name='category',
-        #     name='image',
-        # ),
-        # migrations.RemoveField(
-        #     model_name='subcategory',
-        #     name='image',
-        # ),
-        # migrations.RemoveField(
-        #     model_name='viewoption',
-        #     name='image',
-        # ),
+        # IMPORTANTE: quitamos los RemoveField(image) que rompen en una DB limpia.
+        # migrations.RemoveField(model_name='category', name='image'),
+        # migrations.RemoveField(model_name='subcategory', name='image'),
+        # migrations.RemoveField(model_name='viewoption', name='image'),
 
         migrations.AddField(
             model_name='category',
