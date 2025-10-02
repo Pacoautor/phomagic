@@ -2,32 +2,66 @@
 
 import base64
 import io
-import requests
+import time
 from typing import List, Dict
+
+import requests
+
 from .prompt_builder import build_prompts
 from .openai_client import get_client
 
-# Tamaños permitidos por gpt-image-1 (docs): 1024x1024, 1024x1536, 1536x1024.
-# Nosotros convertimos el tamaño pedido (ej. 1280x1920) al más cercano soportado
-# manteniendo la orientación (vertical).
+
+# Tamaños permitidos por gpt-image-1: 1024x1024, 1024x1536 (vertical), 1536x1024 (horizontal).
 def _closest_openai_size(w: int, h: int) -> str:
     portrait = h >= w
-    if portrait:
-        # 1024x1536 es el vertical permitido
-        return "1024x1536"
-    else:
-        return "1536x1024"  # horizontal
+    return "1024x1536" if portrait else "1536x1024"
 
-def _download_image_bytes(url: str) -> bytes:
-    r = requests.get(url, timeout=30)
-    r.raise_for_status()
-    return r.content
+
+def _download_image_bytes(url: str, max_retries: int = 3, backoff_sec: float = 1.5) -> bytes:
+    """
+    Descarga una imagen con cabeceras 'amigables' y reintentos (maneja 429/403/5xx).
+    Lanza requests.HTTPError si no lo consigue.
+    """
+    headers = {
+        "User-Agent": "Mozilla/5.0 (compatible; PhomagicBot/1.0; +https://www.phomagic.com)",
+        "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+        "Referer": "https://www.phomagic.com/",
+    }
+    last_exc = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            r = requests.get(url, headers=headers, timeout=30)
+            # En algunos hosts, 200 con HTML de error: comprobamos content-type
+            ctype = r.headers.get("Content-Type", "")
+            if r.status_code == 200 and not ctype.startswith(("image/", "application/octet-stream")):
+                # Si es HTML, lo tratamos como error para forzar retry
+                r.raise_for_status()
+            r.raise_for_status()
+            return r.content
+        except requests.HTTPError as e:
+            # Reintenta en 429/5xx o 403 puntuales
+            status = getattr(e.response, "status_code", None)
+            if status in (429, 500, 502, 503, 504, 403) and attempt < max_retries:
+                time.sleep(backoff_sec * attempt)
+                last_exc = e
+                continue
+            raise
+        except Exception as e:
+            # Errores de red/transitorios: reintentar
+            if attempt < max_retries:
+                time.sleep(backoff_sec * attempt)
+                last_exc = e
+                continue
+            raise
+    # Si llegamos aquí (muy raro), relanzamos el último error
+    if last_exc:
+        raise last_exc
+
 
 def generate_views_from_job(job: Dict) -> List[Dict]:
     """
-    Recibe el JOB ya validado (misma estructura que /api/job/validate)
-    y devuelve una lista de resultados por vista:
-    [{ view_id, image_b64 }]
+    Recibe el JOB ya validado y devuelve resultados por vista:
+    [{ view_id, image_b64, model_size }]
     """
     opts = job["client_options"]
     size = opts["size_px"]
@@ -37,10 +71,9 @@ def generate_views_from_job(job: Dict) -> List[Dict]:
     in_bytes = None
     if job["image"].get("image_url"):
         in_bytes = _download_image_bytes(job["image"]["image_url"])
-    # (Si usas upload_id propio, aquí deberías recuperar los bytes desde tu storage)
+    # (Si usas upload_id propio, aquí recupera bytes desde tu storage)
 
     view_tasks = build_prompts(job)
-
     client = get_client()
     results = []
 
@@ -48,27 +81,23 @@ def generate_views_from_job(job: Dict) -> List[Dict]:
         prompt = task["prompt"]
 
         if in_bytes:
-            # Edición con imagen base (image editing)
-            # Docs: images.edits con gpt-image-1 (modelo de edición). :contentReference[oaicite:1]{index=1}
+            # Edición con imagen base
             with io.BytesIO(in_bytes) as f:
-                f.name = "input.jpg"  # algunos bindings esperan un .name
+                f.name = "input.jpg"
                 resp = client.images.edits(
                     model="gpt-image-1",
-                    image=f,             # imagen base
-                    prompt=prompt,       # instrucciones (vista)
-                    size=target_size,    # tamaño soportado por el modelo
-                    # n=1 por defecto (una imagen por vista)
+                    image=f,
+                    prompt=prompt,
+                    size=target_size,
                 )
         else:
-            # Generación pura (por si no hubiera imagen base)
-            # Docs: images.generate con gpt-image-1. :contentReference[oaicite:2]{index=2}
+            # Generación sin imagen base (fallback)
             resp = client.images.generate(
                 model="gpt-image-1",
                 prompt=prompt,
                 size=target_size,
             )
 
-        # El SDK v1 retorna base64 en data[0].b64_json
         b64 = resp.data[0].b64_json
         results.append({
             "view_id": task["view_id"],
