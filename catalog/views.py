@@ -1,7 +1,10 @@
 # catalog/views.py
-import json, re
+import json, re, os, uuid
 from django.http import JsonResponse, HttpResponseBadRequest
 from django.views.decorators.csrf import csrf_exempt
+from django.conf import settings
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
 
 from .catalog_config import CATALOG, DEFAULTS
 from .prompt_builder import build_prompts
@@ -127,10 +130,42 @@ def generate_job(request):
     try:
         results = generate_views_from_job(job)
     except Exception as e:
-        # Puedes registrar el error en logs/monitorización aquí
         return HttpResponseBadRequest(f"Fallo al generar imágenes: {e}")
 
     return JsonResponse(
         {"ok": True, "job": job, "results": results},
         json_dumps_params={"ensure_ascii": False, "indent": 2}
     )
+
+@csrf_exempt
+def upload_image(request):
+    """
+    Sube una imagen (multipart/form-data, campo 'image') y devuelve su URL pública.
+    Ejemplo PowerShell:
+      Invoke-WebRequest -Uri "https://www.phomagic.com/api/upload/" -Method POST -Form @{ image = Get-Item "C:\ruta\mi_foto.jpg" }
+    Respuesta:
+      { "ok": true, "url": "https://www.phomagic.com/media/uploads/abcd1234.jpg" }
+    """
+    if request.method != "POST":
+        return HttpResponseBadRequest("POST only (multipart/form-data)")
+
+    f = request.FILES.get("image")
+    if not f:
+        return HttpResponseBadRequest("Falta el campo 'image' en el formulario")
+
+    ext = os.path.splitext(f.name)[1].lower()
+    if ext not in (".jpg", ".jpeg", ".png", ".webp"):
+        ext = ".jpg"
+
+    fname = f"{uuid.uuid4().hex}{ext}"
+    rel_path = os.path.join("uploads", fname).replace("\\", "/")
+
+    # Guarda en MEDIA_ROOT/uploads/<uuid>.<ext>
+    saved_path = default_storage.save(rel_path, f)
+
+    # URL pública absoluta
+    # default_storage.url() te da /media/uploads/..., le añadimos dominio:
+    file_url = request.build_absolute_uri(settings.MEDIA_URL + saved_path)
+
+    return JsonResponse({"ok": True, "url": file_url},
+                        json_dumps_params={"ensure_ascii": False, "indent": 2})
