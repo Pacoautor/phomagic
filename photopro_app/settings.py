@@ -177,8 +177,7 @@ STATICFILES_DIRS = [
 
 # Configuración de Media (archivos subidos por el usuario)
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
-
+MEDIA_ROOT = 
 # Configuración de WhiteNoise para producción
 STORAGES = {
     "default": {
@@ -233,3 +232,7 @@ LOGGING = {
         },
     },
 }
+
+# ── Media (subidas de usuarios) ─────────────────────────────
+MEDIA_URL = "/media/"
+MEDIA_ROOT = "/opt/render/project/src/media"
