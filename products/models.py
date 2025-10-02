@@ -1,6 +1,6 @@
-
 # --- Rutas de subida usadas por migraciones antiguas ---
 import os
+import uuid
 from django.utils.text import slugify
 
 def _safe_slug(obj, fallback: str) -> str:
@@ -32,9 +32,26 @@ def upload_generated_input(instance, filename):
 def upload_generated_output(instance, filename):
     # p.ej: uploads/generated/output/archivo.jpg
     return os.path.join("uploads", "generated", "output", filename)
+
+# --- Aliases para migraciones antiguas ---
+def upload_input_path(instance, filename):
+    """
+    Alias para migraciones antiguas que usan este nombre.
+    Genera un nombre único en carpeta inputs/.
+    """
+    name, ext = os.path.splitext(filename)
+    new_name = f"{uuid.uuid4().hex}{ext.lower()}"
+    return os.path.join("inputs", new_name)
+
+def upload_output_path(instance, filename):
+    """
+    Alias para migraciones antiguas que usan este nombre.
+    Genera un nombre único en carpeta outputs/.
+    """
+    name, ext = os.path.splitext(filename)
+    new_name = f"{uuid.uuid4().hex}{ext.lower()}"
+    return os.path.join("outputs", new_name)
 # --- fin stubs ---
-
-
 
 
 from django.db import models
@@ -120,11 +137,4 @@ class GeneratedImage(models.Model):
     subcategory = models.ForeignKey(Subcategory, on_delete=models.SET_NULL, null=True, blank=True)
     viewoption = models.ForeignKey(ViewOption, on_delete=models.SET_NULL, null=True, blank=True)
     input_image = models.FileField(upload_to="inputs/", blank=True, null=True)
-    output_image = models.FileField(upload_to="outputs/", blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["-created_at"]
-
-    def __str__(self):
-        return f"Gen #{self.pk} ({self.created_at:%Y-%m-%d %H:%M})"
+    output_image = models.FileField(upload_to="
