@@ -1,13 +1,13 @@
 # catalog/views.py
 import json, re, os, uuid, io, base64
-from typing import Tuple, Optional, Dict
+from typing import Tuple, Optional, Dict, List
 
 from django.http import JsonResponse, HttpResponseBadRequest, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
 from django.core.files.storage import default_storage
 
-from PIL import Image
+from PIL import Image, ImageFilter, ImageStat
 
 from .catalog_config import CATALOG, DEFAULTS
 from .prompt_builder import build_prompts
@@ -101,7 +101,6 @@ def _parse_box(s: Optional[str]) -> Optional[Dict]:
         for k in ["x", "y", "w", "h", "img_w", "img_h"]:
             if k not in data:
                 return None
-        # valores mínimos razonables
         if data["w"] <= 0 or data["h"] <= 0:
             return None
         return data
@@ -119,7 +118,6 @@ def _save_b64_as_png_with_bg_and_resize(
     """
     Decodifica base64 -> PIL.Image, compone sobre fondo HEX exacto,
     redimensiona a (target_w, target_h) y devuelve la PIL.Image resultante.
-    El guardado final se hace después (tras reponer logo/etiqueta si aplica).
     """
     raw = base64.b64decode(b64_str)
     img = Image.open(io.BytesIO(raw))
@@ -141,38 +139,101 @@ def _save_b64_as_png_with_bg_and_resize(
     return canvas
 
 
+def _match_color_to_region(src_rgb: Image.Image, dst_region_rgb: Image.Image) -> Image.Image:
+    """
+    Igualado simple de color por canal:
+      gain_c = mean_dst_c / mean_src_c
+      out_c = clamp(src_c * gain_c)
+    """
+    src = src_rgb.convert("RGB")
+    dst = dst_region_rgb.convert("RGB")
+
+    src_stat = ImageStat.Stat(src)
+    dst_stat = ImageStat.Stat(dst)
+    s_means = src_stat.mean  # [R,G,B]
+    d_means = dst_stat.mean
+
+    bands = src.split()
+    adj_bands: List[Image.Image] = []
+    for i, band in enumerate(bands):
+        sm = max(1.0, s_means[i])
+        dm = max(1.0, d_means[i])
+        gain = dm / sm
+
+        # tabla rápida de 0..255
+        lut = [min(255, max(0, int(round(v * gain)))) for v in range(256)]
+        adj_bands.append(band.point(lut))
+
+    return Image.merge("RGB", tuple(adj_bands))
+
+
+def _paste_with_feather(
+    base_img: Image.Image,
+    crop_rgb: Image.Image,
+    xy: Tuple[int, int],
+    feather: int = 4
+):
+    """
+    Pega con máscara de borde suavizado (feather).
+    """
+    cw, ch = crop_rgb.size
+    mask = Image.new("L", (cw, ch), 255)
+    if feather > 0:
+        mask = mask.filter(ImageFilter.GaussianBlur(radius=feather))
+    base_img.paste(crop_rgb, xy, mask)
+
+
 def _paste_original_regions(
     final_img: Image.Image,
     orig_rel_path: str,
     logo_box: Optional[Dict],
     neck_box: Optional[Dict],
+    feather: int = 4,
+    do_color_match: bool = True,
 ):
     """
     Pega los recortes EXACTOS del original (logo/etiqueta) sobre la imagen final,
-    mapeando coordenadas de la imagen original -> tamaño final.
+    mapeando coordenadas de la imagen original -> tamaño final con:
+    - igualado de color a la región destino
+    - máscara feather para que no se note la junta
     """
     if not (logo_box or neck_box):
         return
 
-    # Abrimos original subido
     with default_storage.open(orig_rel_path, "rb") as fh:
         orig = Image.open(io.BytesIO(fh.read())).convert("RGB")
     orig_w, orig_h = orig.size
 
-    # Escala de original -> final
     sx = final_img.width / max(1, orig_w)
     sy = final_img.height / max(1, orig_h)
 
     def paste_box(b: Dict):
-        # Coordenadas en original:
         x, y, w, h = b["x"], b["y"], b["w"], b["h"]
-        # Recorte original
-        crop = orig.crop((x, y, x + w, y + h))
-        # Escalamos el recorte a la escala de la imagen final
-        crop_resized = crop.resize((max(1, int(w * sx)), max(1, int(h * sy))), Image.LANCZOS)
-        # Posición en final
-        xf, yf = int(x * sx), int(y * sy)
-        final_img.paste(crop_resized, (xf, yf))
+        crop = orig.crop((x, y, x + w, y + h))  # recorte original
+
+        # Escalamos recorte al tamaño final correspondiente
+        tw, th = max(1, int(round(w * sx))), max(1, int(round(h * sy)))
+        crop_resized = crop.resize((tw, th), Image.LANCZOS)
+
+        # Coordenadas destino en la imagen final
+        xf, yf = int(round(x * sx)), int(round(y * sy))
+
+        # Igualado de color al entorno destino (misma región del final)
+        if do_color_match:
+            # Recorta zona destino (limitando a los bordes)
+            x2, y2 = min(final_img.width, xf + tw), min(final_img.height, yf + th)
+            x1, y1 = max(0, xf), max(0, yf)
+            if x2 > x1 and y2 > y1:
+                dst_region = final_img.crop((x1, y1, x2, y2)).convert("RGB")
+                # si el recorte sale de imagen, ajustamos también el source
+                if (x1, y1) != (xf, yf) or (x2 - x1, y2 - y1) != (tw, th):
+                    nx = 0 if x1 == xf else (xf - x1)
+                    ny = 0 if y1 == yf else (yf - y1)
+                    crop_resized = crop_resized.crop((nx, ny, nx + dst_region.width, ny + dst_region.height))
+                crop_resized = _match_color_to_region(crop_resized, dst_region)
+
+        # Pegar con feather
+        _paste_with_feather(final_img, crop_resized, (xf, yf), feather=feather)
 
     if logo_box:
         paste_box(logo_box)
@@ -181,9 +242,6 @@ def _paste_original_regions(
 
 
 def _save_final_png(img: Image.Image, prefix: str) -> str:
-    """
-    Guarda en MEDIA_ROOT/outputs/<prefix>.png y devuelve la ruta relativa.
-    """
     rel_path = os.path.join("outputs", f"{prefix}.png").replace("\\", "/")
     with io.BytesIO() as buf:
         img.save(buf, format="PNG")
@@ -232,8 +290,9 @@ def prepare_job(request):
 @csrf_exempt
 def generate_job(request):
     """
-    Genera imagen(es) por cada vista usando OpenAI gpt-image-1.
-    Devuelve: { ok, job, results: [ {view_id, image_url, model_size} ] }
+    Genera imagen(es) por cada vista y guarda PNGs ya con fondo HEX exacto.
+    Si se proporcionan logo_box_json / neck_box_json y orig_rel_path,
+    repone esas zonas con el recorte original (con color match + feather).
     """
     if request.method != "POST":
         return HttpResponseBadRequest("POST only")
@@ -255,10 +314,9 @@ def generate_job(request):
     h = job["client_options"]["size_px"]["height"]
     bg_hex = job["client_options"]["background"]["hex"]
 
-    # Permitir que la API JSON también reponga logo/etiqueta si se pasa:
-    logo_box = _parse_box(job.get("logo_box_json")) if isinstance(job, dict) else None
-    neck_box = _parse_box(job.get("neck_box_json")) if isinstance(job, dict) else None
-    orig_rel = job.get("orig_rel_path")  # solo si lo pasan
+    logo_box = _parse_box(job.get("logo_box_json"))
+    neck_box = _parse_box(job.get("neck_box_json"))
+    orig_rel = job.get("orig_rel_path")
 
     saved_results = []
     batch_id = uuid.uuid4().hex[:8]
@@ -266,9 +324,8 @@ def generate_job(request):
         prefix = f"{batch_id}_{r['view_id']}"
         composed = _save_b64_as_png_with_bg_and_resize(r["image_b64"], bg_hex, w, h, prefix)
 
-        # Reponer regiones si nos pasaron datos válidos
         if orig_rel and (logo_box or neck_box):
-            _paste_original_regions(composed, orig_rel, logo_box, neck_box)
+            _paste_original_regions(composed, orig_rel, logo_box, neck_box, feather=5, do_color_match=True)
 
         rel_out = _save_final_png(composed, prefix)
         url = request.build_absolute_uri(settings.MEDIA_URL + rel_out)
@@ -286,9 +343,6 @@ def generate_job(request):
 
 @csrf_exempt
 def upload_image(request):
-    """
-    Sube una imagen (multipart/form-data, campo 'image') y devuelve su URL pública.
-    """
     if request.method != "POST":
         return HttpResponseBadRequest("POST only (multipart/form-data)")
 
@@ -311,7 +365,7 @@ def upload_image(request):
 
 
 # =========================
-# UI con marcado de logo/etiqueta
+# UI con marcado multi-zona (logo + etiqueta)
 # =========================
 
 HTML_PAGE = """
@@ -339,6 +393,10 @@ a.dl{display:inline-block;margin-top:6px;font-size:12px}
 #preview{max-width:100%;display:block}
 #overlay{position:absolute;left:0;top:0}
 .note{background:#fffbeb;border:1px solid #f59e0b;color:#92400e;padding:8px 10px;border-radius:8px;font-size:12px;margin-top:6px}
+.modebar{display:flex;gap:8px;margin-top:8px}
+.modebar .btn{background:#374151}
+.modebar .btn.active{background:#111827}
+.btn-outline{background:#fff;color:#111827;border:1px solid #d1d5db}
 </style>
 </head>
 <body>
@@ -389,19 +447,22 @@ a.dl{display:inline-block;margin-top:6px;font-size:12px}
 
     <label>Sombra</label>
     <div class="row">
-      <label class="badge"><input type="checkbox" name="shadow_enabled" checked> Activar sombra</label>
-      <span class="small">Preset: Multiplicar, 43%, 90°, 18px, 0%, 21px</span>
-    </div>
-
-    <div class="row">
       <label class="badge"><input id="cbLogo" type="checkbox" name="logo"> Detectar/Respetar logo</label>
       <label class="badge"><input id="cbNeck" type="checkbox" name="neck_label"> Detectar etiqueta trasera</label>
     </div>
 
-    <div class="note">Si marcas “logo” o “etiqueta”, dibuja el rectángulo correspondiente sobre el preview.</div>
+    <div class="note">Activa “logo” y/o “etiqueta”, elige el modo y dibuja un rectángulo en el preview. Puedes marcar <b>ambos</b>.</div>
+
     <div class="canvas-wrap" style="display:none" id="wrap">
       <img id="preview" alt="preview"/>
       <canvas id="overlay"></canvas>
+
+      <div class="modebar" id="modebar" style="display:none">
+        <button type="button" class="btn" id="btnModeLogo">Dibujar LOGO</button>
+        <button type="button" class="btn" id="btnModeNeck">Dibujar ETIQUETA</button>
+        <button type="button" class="btn btn-outline" id="btnClearLogo">Borrar LOGO</button>
+        <button type="button" class="btn btn-outline" id="btnClearNeck">Borrar ETIQUETA</button>
+      </div>
     </div>
 
     <input type="hidden" name="logo_box_json" id="logoBox">
@@ -427,6 +488,12 @@ a.dl{display:inline-block;margin-top:6px;font-size:12px}
   const logoBoxInput = document.getElementById('logoBox');
   const neckBoxInput = document.getElementById('neckBox');
 
+  const modebar = document.getElementById('modebar');
+  const btnModeLogo = document.getElementById('btnModeLogo');
+  const btnModeNeck = document.getElementById('btnModeNeck');
+  const btnClearLogo = document.getElementById('btnClearLogo');
+  const btnClearNeck = document.getElementById('btnClearNeck');
+
   let activeMode = null; // 'logo' | 'neck' | null
   let imgLoaded = false;
   let start = null;
@@ -443,20 +510,18 @@ a.dl{display:inline-block;margin-top:6px;font-size:12px}
   function draw(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
     ctx.lineWidth = 2;
-    // Logo en azul
+
     if (boxLogo){
-      ctx.strokeStyle = '#2563eb';
+      ctx.strokeStyle = '#2563eb'; // azul
       ctx.strokeRect(boxLogo.x, boxLogo.y, boxLogo.w, boxLogo.h);
     }
-    // Etiqueta en verde
     if (boxNeck){
-      ctx.strokeStyle = '#16a34a';
+      ctx.strokeStyle = '#16a34a'; // verde
       ctx.strokeRect(boxNeck.x, boxNeck.y, boxNeck.w, boxNeck.h);
     }
   }
 
   function relToNatural(b){
-    // Convierte caja en coords del canvas → coords de la imagen natural
     const nx = Math.round(b.x * (img.naturalWidth / canvas.width));
     const ny = Math.round(b.y * (img.naturalHeight / canvas.height));
     const nw = Math.round(b.w * (img.naturalWidth / canvas.width));
@@ -474,6 +539,7 @@ a.dl{display:inline-block;margin-top:6px;font-size:12px}
       wrap.style.display='inline-block';
       fitCanvas();
       draw();
+      updateModebar();
     };
   });
 
@@ -483,16 +549,29 @@ a.dl{display:inline-block;margin-top:6px;font-size:12px}
     draw();
   });
 
+  function updateModebar(){
+    const any = cbLogo.checked || cbNeck.checked;
+    modebar.style.display = any ? 'flex' : 'none';
+    if (!any) { activeMode = null; }
+    btnModeLogo.classList.toggle('active', activeMode==='logo');
+    btnModeNeck.classList.toggle('active', activeMode==='neck');
+  }
+
   cbLogo.addEventListener('change', ()=>{
-    activeMode = cbLogo.checked ? 'logo' : (cbNeck.checked ? 'neck' : null);
-    if(!cbLogo.checked) boxLogo = null, logoBoxInput.value='';
-    draw();
+    if (cbLogo.checked && !activeMode) activeMode = 'logo';
+    if (!cbLogo.checked) { boxLogo = null; logoBoxInput.value=''; if (activeMode==='logo') activeMode=null; }
+    updateModebar(); draw();
   });
   cbNeck.addEventListener('change', ()=>{
-    activeMode = cbNeck.checked ? 'neck' : (cbLogo.checked ? 'logo' : null);
-    if(!cbNeck.checked) boxNeck = null, neckBoxInput.value='';
-    draw();
+    if (cbNeck.checked && !activeMode) activeMode = 'neck';
+    if (!cbNeck.checked) { boxNeck = null; neckBoxInput.value=''; if (activeMode==='neck') activeMode=null; }
+    updateModebar(); draw();
   });
+
+  btnModeLogo.addEventListener('click', ()=>{ if (cbLogo.checked){ activeMode='logo'; updateModebar(); }});
+  btnModeNeck.addEventListener('click', ()=>{ if (cbNeck.checked){ activeMode='neck'; updateModebar(); }});
+  btnClearLogo.addEventListener('click', ()=>{ boxLogo=null; logoBoxInput.value=''; draw(); });
+  btnClearNeck.addEventListener('click', ()=>{ boxNeck=null; neckBoxInput.value=''; draw(); });
 
   canvas.addEventListener('mousedown', (e)=>{
     if(!activeMode || !imgLoaded) return;
@@ -509,7 +588,6 @@ a.dl{display:inline-block;margin-top:6px;font-size:12px}
   });
   canvas.addEventListener('mouseup', ()=>{
     if(!start) return; start=null;
-    // Guardar al hidden en coords naturales
     if(boxLogo){ logoBoxInput.value = JSON.stringify(relToNatural(boxLogo)); }
     if(boxNeck){ neckBoxInput.value = JSON.stringify(relToNatural(boxNeck)); }
   });
@@ -556,7 +634,6 @@ def ui_generate_action(request):
         w, h = 1280, 1920
 
     background_hex = (request.POST.get("background_hex", "#ffffff") or "#ffffff").strip()
-    shadow_enabled = "shadow_enabled" in request.POST
     logo = "logo" in request.POST
     neck_label = "neck_label" in request.POST
     views_sel = request.POST.getlist("views") or ["estirada"]
@@ -567,7 +644,6 @@ def ui_generate_action(request):
     logo_box = _parse_box(logo_box_json)
     neck_box = _parse_box(neck_box_json)
 
-    # Payload para generar (igual que la API JSON, pero añadimos info extra para reposición)
     payload = {
         "category": category,
         "subcategory": subcategory,
@@ -576,20 +652,14 @@ def ui_generate_action(request):
             "size": {"width": w, "height": h},
             "background_hex": background_hex,
             "shadow": {
-                "enabled": shadow_enabled,
-                "mode": "multiply",
-                "opacity": 0.43,
-                "angle": 90,
-                "distance": 18,
-                "spread": 0,
-                "size": 21
+                "enabled": True,  # (el preset ya lo aplicamos en prompt/IA)
+                "mode": "multiply", "opacity": 0.43, "angle": 90, "distance": 18, "spread": 0, "size": 21
             },
             "logo": logo,
             "neck_label": neck_label
         },
         "image_url": image_url,
-        # datos extra para post-proceso:
-        "orig_rel_path": rel_path,  # ruta relativa en MEDIA_ROOT
+        "orig_rel_path": rel_path,
         "logo_box_json": json.dumps(logo_box) if logo_box else None,
         "neck_box_json": json.dumps(neck_box) if neck_box else None,
     }
@@ -598,13 +668,11 @@ def ui_generate_action(request):
     if not ok:
         return _render_html(f"<p class='small'>Error: {err}</p>")
 
-    # Generar con OpenAI
     try:
         results = generate_views_from_job(job)
     except Exception as e:
         return _render_html(f"<p class='small'>Fallo al generar: {e}</p>")
 
-    # Post-proceso y guardado con reposición de logo/etiqueta si procede
     batch_id = uuid.uuid4().hex[:8]
     tiles = []
     for r in results:
@@ -612,7 +680,7 @@ def ui_generate_action(request):
         composed = _save_b64_as_png_with_bg_and_resize(r["image_b64"], background_hex, w, h, prefix)
 
         if (logo_box or neck_box):
-            _paste_original_regions(composed, rel_path, logo_box, neck_box)
+            _paste_original_regions(composed, rel_path, logo_box, neck_box, feather=5, do_color_match=True)
 
         rel_out = _save_final_png(composed, prefix)
         url_out = request.build_absolute_uri(settings.MEDIA_URL + rel_out)
