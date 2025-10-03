@@ -1,9 +1,13 @@
 # catalog/views.py
 import json, re, os, uuid, io, base64
+from typing import Tuple
+
 from django.http import JsonResponse, HttpResponseBadRequest, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
 from django.core.files.storage import default_storage
+
+from PIL import Image  # Post-proceso de fondo y resize
 
 from .catalog_config import CATALOG, DEFAULTS
 from .prompt_builder import build_prompts
@@ -74,6 +78,49 @@ def _validate_and_build_job(payload: dict):
     }
     return True, None, job
 
+
+# ---------- Utilidades de guardado/post-proceso ----------
+
+def _hex_to_rgb(hex_str: str) -> Tuple[int, int, int]:
+    s = hex_str.lstrip("#")
+    if len(s) == 3:
+        s = "".join(ch*2 for ch in s)
+    return tuple(int(s[i:i+2], 16) for i in (0, 2, 4))
+
+def _save_b64_as_png_with_bg_and_resize(b64_str: str, bg_hex: str, target_w: int, target_h: int, prefix: str) -> str:
+    """
+    Decodifica base64 -> PIL.Image, compone sobre fondo HEX exacto,
+    redimensiona a (target_w, target_h) y guarda en MEDIA_ROOT/outputs/<fname>.png
+    Devuelve ruta relativa (outputs/xxx.png) para usar con MEDIA_URL.
+    """
+    raw = base64.b64decode(b64_str)
+    img = Image.open(io.BytesIO(raw))
+
+    # Lienzo de fondo exacto
+    bg_rgb = _hex_to_rgb(bg_hex)
+    canvas = Image.new("RGB", (img.width, img.height), bg_rgb)
+
+    # Si viene con alfa, componer; si no, convertir a RGB y pegar
+    if img.mode in ("RGBA", "LA"):
+        canvas.paste(img.convert("RGBA"), (0, 0), img.convert("RGBA"))
+    else:
+        canvas.paste(img.convert("RGB"), (0, 0))
+
+    # Redimensionar al tamaño solicitado por el cliente
+    if (canvas.width, canvas.height) != (target_w, target_h):
+        canvas = canvas.resize((target_w, target_h), Image.LANCZOS)
+
+    # Guardar
+    fname = f"{prefix}.png"
+    rel_path = os.path.join("outputs", fname).replace("\\", "/")
+    with io.BytesIO() as buf:
+        canvas.save(buf, format="PNG")
+        buf.seek(0)
+        default_storage.save(rel_path, buf)
+
+    return rel_path  # relativo a MEDIA_ROOT
+
+
 @csrf_exempt
 def build_job(request):
     if request.method != "POST":
@@ -113,7 +160,7 @@ def prepare_job(request):
 def generate_job(request):
     """
     Genera imagen(es) por cada vista usando OpenAI gpt-image-1.
-    Devuelve: { ok, job, results: [ {view_id, image_b64, model_size} ] }
+    Devuelve: { ok, job, results: [ {view_id, image_b64, image_url, model_size} ] }
     """
     if request.method != "POST":
         return HttpResponseBadRequest("POST only")
@@ -131,8 +178,28 @@ def generate_job(request):
     except Exception as e:
         return HttpResponseBadRequest(f"Fallo al generar imágenes: {e}")
 
+    # Post-proceso y guardado
+    w = job["client_options"]["size_px"]["width"]
+    h = job["client_options"]["size_px"]["height"]
+    bg_hex = job["client_options"]["background"]["hex"]
+    saved_results = []
+    batch_id = uuid.uuid4().hex[:8]
+
+    for r in results:
+        prefix = f"{batch_id}_{r['view_id']}"
+        rel_path = _save_b64_as_png_with_bg_and_resize(
+            r["image_b64"], bg_hex, w, h, prefix
+        )
+        url = request.build_absolute_uri(settings.MEDIA_URL + rel_path)
+        saved_results.append({
+            "view_id": r["view_id"],
+            "model_size": r["model_size"],
+            "image_url": url,
+            "image_b64": r["image_b64"],  # por compatibilidad
+        })
+
     return JsonResponse(
-        {"ok": True, "job": job, "results": results},
+        {"ok": True, "job": job, "results": saved_results},
         json_dumps_params={"ensure_ascii": False, "indent": 2}
     )
 
@@ -185,6 +252,7 @@ input[type=file],select,input[type=text]{width:100%;padding:8px;border:1px solid
 .imgbox{display:grid;grid-template-columns:repeat(auto-fill, minmax(220px,1fr));gap:12px;margin-top:16px}
 img{max-width:100%;border-radius:8px;border:1px solid #e5e7eb}
 .small{color:#6b7280;font-size:12px}
+a.dl{display:inline-block;margin-top:6px;font-size:12px}
 </style>
 </head>
 <body>
@@ -259,14 +327,10 @@ def _render_html(results_html: str = "") -> HttpResponse:
 
 @csrf_exempt
 def ui_upload_page(request):
-    # Solo muestra el formulario
     return _render_html("")
 
 @csrf_exempt
 def ui_generate_action(request):
-    """
-    Maneja el formulario: sube imagen -> construye job -> genera vistas -> muestra resultados.
-    """
     if request.method != "POST":
         return HttpResponseBadRequest("POST only")
 
@@ -283,7 +347,7 @@ def ui_generate_action(request):
     saved_path = default_storage.save(rel_path, f)
     image_url = request.build_absolute_uri(settings.MEDIA_URL + saved_path)
 
-    # Leer campos
+    # Leer opciones
     category = request.POST.get("category", "Moda")
     subcategory = request.POST.get("subcategory", "Camisetas y Polos")
     size_str = request.POST.get("size", "1280x1920")
@@ -297,13 +361,8 @@ def ui_generate_action(request):
     shadow_enabled = "shadow_enabled" in request.POST
     logo = "logo" in request.POST
     neck_label = "neck_label" in request.POST
+    views_sel = request.POST.getlist("views") or ["estirada"]
 
-    # Vistas marcadas
-    views_sel = request.POST.getlist("views")
-    if not views_sel:
-        views_sel = ["estirada"]
-
-    # Construir payload idéntico al de la API
     payload = {
         "category": category,
         "subcategory": subcategory,
@@ -326,7 +385,6 @@ def ui_generate_action(request):
         "image_url": image_url
     }
 
-    # Validar y generar
     ok, err, job = _validate_and_build_job(payload)
     if not ok:
         return _render_html(f"<p class='small'>Error: {err}</p>")
@@ -336,14 +394,21 @@ def ui_generate_action(request):
     except Exception as e:
         return _render_html(f"<p class='small'>Fallo al generar: {e}</p>")
 
-    # Renderizar resultados en HTML (img base64)
-    imgs = []
+    # Guardar cada resultado y componer HTML con links
+    batch_id = uuid.uuid4().hex[:8]
+    tiles = []
     for r in results:
-        src = f"data:image/png;base64,{r['image_b64']}"
-        cap = f"Vista: {r['view_id']} · {r['model_size']}"
-        imgs.append(f"<figure><img src='{src}' alt='{cap}'><figcaption class='small'>{cap}</figcaption></figure>")
-    grid = "<div class='imgbox'>" + "".join(imgs) + "</div>"
+        prefix = f"{batch_id}_{r['view_id']}"
+        rel_out = _save_b64_as_png_with_bg_and_resize(
+            r["image_b64"], background_hex, w, h, prefix
+        )
+        url_out = request.build_absolute_uri(settings.MEDIA_URL + rel_out)
+        cap = f"Vista: {r['view_id']} · {w}x{h}"
+        tiles.append(
+            f"<figure><img src='{url_out}' alt='{cap}'><figcaption class='small'>{cap} · "
+            f"<a class='dl' href='{url_out}' download>Descargar</a></figcaption></figure>"
+        )
 
+    grid = "<div class='imgbox'>" + "".join(tiles) + "</div>"
     msg = f"<p class='small'>Imagen subida: <a href='{image_url}' target='_blank'>{image_url}</a></p>"
     return _render_html(msg + grid)
-
