@@ -22,19 +22,33 @@ def ensure_dirs():
 
 def list_line_thumbnails(category, subcategory):
     """
-    Devuelve una lista de rutas absolutas a miniaturas de vistas disponibles (1.jpg, 2.jpg, ...).
+    Devuelve lista [(num, abs_path)] de vistas disponibles (1.jpg/png, 2.jpg/png, ...).
+    Hace tolerante la búsqueda (ignora mayúsculas, acentos, paréntesis, etc.).
     """
-    folder_name = f"{category}_{subcategory}"
-    folder_path = os.path.join(LINE_ROOT, folder_name)
-    if not os.path.isdir(folder_path):
-        return []
+    import unicodedata
+
+    def normalize(s):
+        s = s.lower().replace("(", "").replace(")", "").replace("[", "").replace("]", "")
+        s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")
+        return s.strip()
+
+    normalized_target = normalize(f"{category}_{subcategory}")
+
+    # Buscar carpeta coincidente dentro de 'lineas'
+    for folder in os.listdir(LINE_ROOT):
+        if normalize(folder) == normalized_target:
+            folder_path = LINE_ROOT / folder
+            break
+    else:
+        return []  # no coincide nada
 
     views = []
     for name in sorted(os.listdir(folder_path)):
-        if name.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
+        if name.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
+            stem = os.path.splitext(name)[0]
             try:
-                num = int(os.path.splitext(name)[0])
-                views.append((num, os.path.join(folder_path, name)))
+                num = int(stem)
+                views.append((num, str(folder_path / name)))
             except ValueError:
                 continue
     views.sort(key=lambda t: t[0])
