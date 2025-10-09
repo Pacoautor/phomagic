@@ -1,73 +1,157 @@
-{% extends "base.html" %}
-{% load static %}
-
-{% block title %}Generar imagen{% endblock %}
+{% extends "products/base.html" %}
+{% block title %}Subir foto y elegir vista{% endblock %}
 
 {% block content %}
-<div class="container py-4">
+<h3>2) Sube tu foto y elige la vista</h3>
 
-  <h1 class="mb-3">
-    Generar imagen
-    {% if subcategory %}<small class="text-muted">– {{ subcategory.category.name }} / {{ subcategory.name }}</small>{% endif %}
-    {% firstof viewoption.name viewopt.name as vo_name %}
-    {% if vo_name %}<small class="text-muted"> / {{ vo_name }}</small>{% endif %}
-  </h1>
+<form method="post" enctype="multipart/form-data" id="mainForm">
+  {% csrf_token %}
 
-  {# Resultado si existe #}
-  {% firstof final_url result_url output_url result_image_url image_url as show_url %}
-  {% if show_url %}
-    <div class="card bg-dark text-light border-0 shadow-sm mb-4">
-      <div class="card-body">
-        <h5 class="card-title">Resultado</h5>
-        <div class="ratio ratio-1x1" style="background:#fff;border:1px solid #333;border-radius:8px;">
-          <img src="{{ show_url }}" alt="Imagen generada" style="object-fit:contain;width:100%;height:100%;border-radius:8px;">
-        </div>
-        <div class="mt-3 d-flex gap-2">
-          <a class="btn btn-primary" href="{{ show_url }}" download>Descargar</a>
-          <a class="btn btn-outline-secondary" href="">Generar otra</a>
-        </div>
+  <fieldset>
+    <legend>Tu foto</legend>
+    {{ upload_form.as_p }}
+  </fieldset>
+
+  <fieldset>
+    <legend>Vistas disponibles (elige una)</legend>
+    {% if thumbnails %}
+      <div class="thumb-grid">
+        {% for num, url in thumbnails %}
+          <label style="display:block">
+            <img src="{{ url }}" alt="Vista {{ num }}">
+            <div style="margin-top:6px">
+              <input type="radio" name="view_number" value="{{ num }}" {% if forloop.first %}checked{% endif %}> Vista {{ num }}
+            </div>
+          </label>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p>No se han encontrado vistas para esta categoría/subcategoría.</p>
+    {% endif %}
+  </fieldset>
+
+  {% if selection.follow_logo %}
+  <fieldset>
+    <legend>Seguimiento de logotipo</legend>
+    <p class="note">1) Dibuja un rectángulo rojo sobre tu foto (previsualización). 2) Sube el archivo del logotipo.</p>
+
+    <!-- Previsualización del cliente: el usuario puede cargar su foto arriba; la mostramos al vuelo -->
+    <div>
+      <div class="canvas-wrap">
+        <img id="previewImg" alt="Previsualización" style="max-width: 100%; display:none;">
+        <div id="drawRect" class="logo-rect" style="display:none;"></div>
       </div>
     </div>
+
+    <!-- Campos ocultos con porcentajes -->
+    <input type="hidden" name="rect_x" id="rect_x">
+    <input type="hidden" name="rect_y" id="rect_y">
+    <input type="hidden" name="rect_w" id="rect_w">
+    <input type="hidden" name="rect_h" id="rect_h">
+
+    <div style="margin-top:10px">
+      {{ logo_form.logo_file.label_tag }}<br>
+      {{ logo_form.logo_file }}
+    </div>
+  </fieldset>
   {% endif %}
 
-  <div class="card bg-dark text-light border-0 shadow">
-    <div class="card-body">
-      <h5 class="card-title mb-3">Sube tu foto</h5>
-
-      <form id="gen-form" method="post" enctype="multipart/form-data" novalidate>
-        {% csrf_token %}
-
-        <div class="mb-3">
-          <label for="id_photo" class="form-label">Imagen del cliente</label>
-          <input type="file" name="photo" accept="image/*" required class="form-control" id="id_photo">
-          <div class="form-text">Formatos: JPG, PNG, WEBP • Máx. ~10MB</div>
-        </div>
-
-        {# NO mostramos prompts. Nunca. #}
-
-        <button type="submit" class="btn btn-success">Generar</button>
-      </form>
-    </div>
-  </div>
-</div>
-
-{# Overlay de carga con GIF #}
-<div id="loader-overlay" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.65);z-index:9999;">
-  <div style="text-align:center;">
-    <img src="{% static 'load-142_256.gif' %}" alt="Generando..." style="width:128px;height:128px;image-rendering:auto;">
-    <div class="mt-3 text-light">Generando tu imagen…</div>
-  </div>
-</div>
+  <button type="submit" class="button-primary">Generar resultado</button>
+</form>
 
 <script>
-  (function () {
-    const form = document.getElementById('gen-form');
-    const overlay = document.getElementById('loader-overlay');
-    if (form && overlay) {
-      form.addEventListener('submit', function () {
-        overlay.style.display = 'flex';
-      });
-    }
-  })();
+(function() {
+  const inputFile = document.querySelector('input[type="file"][name="client_photo"]');
+  const img = document.getElementById('previewImg');
+  const rect = document.getElementById('drawRect');
+  const wrap = img ? img.parentElement : null;
+
+  const hx = document.getElementById('rect_x');
+  const hy = document.getElementById('rect_y');
+  const hw = document.getElementById('rect_w');
+  const hh = document.getElementById('rect_h');
+
+  if (inputFile) {
+    inputFile.addEventListener('change', function(ev) {
+      const f = ev.target.files && ev.target.files[0];
+      if (!f) return;
+      const url = URL.createObjectURL(f);
+      img.src = url;
+      img.style.display = 'block';
+      rect.style.display = 'none';
+      // Reset
+      hx.value = ''; hy.value = ''; hw.value = ''; hh.value = '';
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    });
+  }
+
+  let startX = 0, startY = 0;
+  let dragging = false;
+
+  function relPos(e) {
+    const r = img.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width;
+    const y = (e.clientY - r.top) / r.height;
+    return {x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y))};
+  }
+
+  function onDown(e) {
+    if (img.style.display === 'none') return;
+    dragging = true;
+    const p = relPos(e);
+    startX = p.x; startY = p.y;
+    rect.style.display = 'block';
+    updateRect(p.x, p.y);
+    e.preventDefault();
+  }
+
+  function onMove(e) {
+    if (!dragging) return;
+    const p = relPos(e);
+    updateRect(p.x, p.y);
+  }
+
+  function onUp(e) {
+    if (!dragging) return;
+    dragging = false;
+    const r = computeRectPercent();
+    hx.value = (r.x * 100).toFixed(2);
+    hy.value = (r.y * 100).toFixed(2);
+    hw.value = (r.w * 100).toFixed(2);
+    hh.value = (r.h * 100).toFixed(2);
+  }
+
+  function updateRect(currX, currY) {
+    const r = img.getBoundingClientRect();
+    const x = Math.min(startX, currX);
+    const y = Math.min(startY, currY);
+    const w = Math.abs(currX - startX);
+    const h = Math.abs(currY - startY);
+
+    rect.style.left = (x * r.width) + 'px';
+    rect.style.top = (y * r.height) + 'px';
+    rect.style.width = (w * r.width) + 'px';
+    rect.style.height = (h * r.height) + 'px';
+  }
+
+  function computeRectPercent() {
+    const r = img.getBoundingClientRect();
+    const x = parseFloat(rect.style.left || 0) / r.width;
+    const y = parseFloat(rect.style.top || 0) / r.height;
+    const w = parseFloat(rect.style.width || 0) / r.width;
+    const h = parseFloat(rect.style.height || 0) / r.height;
+    return {x, y, w, h};
+  }
+
+  if (wrap) {
+    wrap.addEventListener('mousedown', onDown);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    // Soporte táctil básico
+    wrap.addEventListener('touchstart', (e) => onDown(e.touches[0]));
+    window.addEventListener('touchmove', (e) => onMove(e.touches[0]));
+    window.addEventListener('touchend', (e) => onUp(e.changedTouches[0]));
+  }
+})();
 </script>
 {% endblock %}

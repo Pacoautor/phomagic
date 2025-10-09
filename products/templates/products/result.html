@@ -1,55 +1,23 @@
-{% extends "base.html" %}
-{% load static %}
-
+{% extends "products/base.html" %}
 {% block title %}Resultado{% endblock %}
 
 {% block content %}
-<div class="container py-4">
-  <h1 class="mb-3">Resultado</h1>
+<h3>3) Resultado</h3>
 
-  {% if error_msg %}
-    <div class="alert alert-warning">{{ error_msg }}</div>
-  {% endif %}
+<figure>
+  <figcaption>Resultado 1 (base)</figcaption>
+  <img src="{{ result1_url }}" alt="Resultado 1" style="max-width:100%;border:1px solid #ddd;border-radius:6px;">
+</figure>
 
-  <div class="row g-4">
-    <div class="col-md-4">
-      <div class="card h-100 text-center p-3">
-        {% if image_1024 %}
-          <img src="{{ image_1024 }}" alt="Resultado 1024" class="img-fluid mb-2">
-          <a class="btn btn-primary" href="{{ image_1024 }}" download>Descargar 1024×1024</a>
-        {% else %}
-          <div class="text-muted">1024×1024 no disponible</div>
-          <button class="btn btn-secondary" disabled>No disponible</button>
-        {% endif %}
-      </div>
-    </div>
+{% if used_logo %}
+  <figure style="margin-top:20px">
+    <figcaption>Resultado final con logotipo</figcaption>
+    <img src="{{ final_url }}" alt="Resultado Final" style="max-width:100%;border:1px solid #ddd;border-radius:6px;">
+  </figure>
+{% endif %}
 
-    <div class="col-md-4">
-      <div class="card h-100 text-center p-3">
-        {% if image_512 %}
-          <img src="{{ image_512 }}" alt="Resultado 512" class="img-fluid mb-2">
-          <a class="btn btn-primary" href="{{ image_512 }}" download>Descargar 512×512</a>
-        {% else %}
-          <div class="text-muted">512×512 no disponible</div>
-          <button class="btn btn-secondary" disabled>No disponible</button>
-        {% endif %}
-      </div>
-    </div>
-
-    <div class="col-md-4">
-      <div class="card h-100 text-center p-3">
-        {% if image_256 %}
-          <img src="{{ image_256 }}" alt="Resultado 256" class="img-fluid mb-2">
-          <a class="btn btn-primary" href="{{ image_256 }}" download>Descargar 256×256</a>
-        {% else %}
-          <div class="text-muted">256×256 no disponible</div>
-          <button class="btn btn-secondary" disabled>No disponible</button>
-        {% endif %}
-      </div>
-    </div>
-  </div>
-
-  <a href="{% url 'view_options' subcategory.id %}" class="btn btn-outline-secondary mt-4">Volver</a>
+<div style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap;">
+  <a class="button button-outline" href="{{ final_url }}" download>Descargar resultado</a>
+  <a class="button" href="{% url 'products:select_category' %}">Volver al menú principal</a>
 </div>
 {% endblock %}
-

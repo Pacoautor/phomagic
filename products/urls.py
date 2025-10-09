@@ -1,9 +1,11 @@
+# products/urls.py
 from django.urls import path
-from . import views as pviews
+from . import views
+
+app_name = 'products'
 
 urlpatterns = [
-    path("", pviews.home, name="home"),
-    path("c/<slug:category_slug>/", pviews.category_detail, name="category_detail"),
-    path("v/<int:subcategory_id>/", pviews.view_options, name="view_options"),
-    path("g/<int:subcategory_id>/<int:view_id>/", pviews.generate_photo, name="generate_photo"),
+    path('', views.select_category, name='select_category'),
+    path('upload/', views.upload_photo, name='upload_photo'),
+    path('result/', views.result_view, name='result'),
 ]
