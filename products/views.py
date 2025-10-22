@@ -9,10 +9,13 @@ from django.conf import settings
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from PIL import Image, ImageOps
+from openai import OpenAI
+import base64
 
 from .forms import SelectCategoryForm, UploadPhotoForm, ChooseViewForm, LogoForm
 
 logger = logging.getLogger(__name__)
+client = OpenAI()
 
 # Acepta 'lineas' o 'Lineas'
 _APP_DIR = Path(__file__).resolve().parent
@@ -166,23 +169,6 @@ def upload_photo(request):
                     'chosen_view_num': chosen_view_num,
                 }
 
-                if selection.get('follow_logo', False):
-                    rx = logo_form.cleaned_data.get('rect_x')
-                    ry = logo_form.cleaned_data.get('rect_y')
-                    rw = logo_form.cleaned_data.get('rect_w')
-                    rh = logo_form.cleaned_data.get('rect_h')
-                    request.session['logo'] = {'rect_x': rx, 'rect_y': ry, 'rect_w': rw, 'rect_h': rh}
-
-                    logo_file = logo_form.cleaned_data.get('logo_file')
-                    if logo_file:
-                        logo_ext = os.path.splitext(logo_file.name)[1].lower().lstrip('.')
-                        logo_rel = f'uploads/input/{uuid4()}.{logo_ext}'
-                        logo_abs = os.path.join(settings.MEDIA_ROOT, logo_rel)
-                        with open(logo_abs, 'wb') as out:
-                            for chunk in logo_file.chunks():
-                                out.write(chunk)
-                        request.session['logo']['logo_rel'] = logo_rel
-
                 return redirect('products:result')
 
         else:
@@ -210,17 +196,31 @@ def upload_photo(request):
         messages.error(request, "Ha ocurrido un error al cargar la página. Inténtalo de nuevo.")
         return redirect('products:select_category')
 
-def _call_openai_edit(client_abs, line_abs, background_hex, category, subcategory, chosen_view_num):
-    base = Image.open(line_abs).convert('RGB')
-    client = Image.open(client_abs).convert('RGB')
-    bg = Image.new('RGB', base.size, background_hex)
-    client_resized = client.resize(base.size, Image.LANCZOS)
-    simulated = Image.blend(bg, client_resized, alpha=0.35)
-    out = Image.blend(simulated, base, alpha=0.65)
-    out = add_white_border(out, border_px=50)
-    buf = io.BytesIO()
-    out.save(buf, format='JPEG', quality=95)
-    return buf.getvalue()
+# === NUEVA VERSIÓN LIMPIA ===
+def _call_openai_edit(client_abs, category, subcategory, chosen_view_num, background_hex):
+    with open(client_abs, "rb") as f:
+        img_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+    prompt = (
+        f"Genera una imagen realista de producto.\n"
+        f"Categoría: {category}. Subcategoría: {subcategory}. Vista: {chosen_view_num}.\n"
+        f"Fondo: {background_hex}. Coloca la imagen del cliente como diseño principal.\n"
+        "No muestres siluetas ni líneas de guía. Sin marcos ni contornos."
+    )
+
+    out = client.images.generate(
+        model="gpt-image-1",
+        prompt=[
+            {"type": "text", "text": prompt},
+            {"type": "input_image", "image": img_b64},
+        ],
+        size="1024x1024",
+    )
+
+    result_b64 = out.data[0].b64_json
+    return base64.b64decode(result_b64)
+
+# ==========================================
 
 def _call_openai_logo(result1_abs, logo_abs, rect_pixels):
     base = Image.open(result1_abs).convert('RGB')
@@ -245,17 +245,17 @@ def result_view(request):
 
         client_rel = work['client_input_rel']
         client_abs = os.path.join(settings.MEDIA_ROOT, client_rel)
-        line_abs = work['line_abs']
         chosen_view_num = work['chosen_view_num']
 
+        # 👉 Genera el resultado con OpenAI
         result1_bytes = _call_openai_edit(
             client_abs=client_abs,
-            line_abs=line_abs,
-            background_hex=background_hex,
             category=category,
             subcategory=subcategory,
             chosen_view_num=chosen_view_num,
+            background_hex=background_hex,
         )
+
         result1_rel = f'uploads/output/Resultado_1_{uuid4()}.jpg'
         result1_abs = os.path.join(settings.MEDIA_ROOT, result1_rel)
         with open(result1_abs, 'wb') as f:
@@ -264,45 +264,13 @@ def result_view(request):
 
         final_url = result1_url
 
-        if selection.get('follow_logo'):
-            logo_info = request.session.get('logo', {})
-            rx = logo_info.get('rect_x')
-            ry = logo_info.get('rect_y')
-            rw = logo_info.get('rect_w')
-            rh = logo_info.get('rect_h')
-            logo_rel = logo_info.get('logo_rel')
-
-            if all(v is not None for v in (rx, ry, rw, rh)) and logo_rel:
-                img = Image.open(result1_abs)
-                W, H = img.size
-                content_x0, content_y0 = 50, 50
-                content_w, content_h = W - 100, H - 100
-
-                px = content_x0 + int((rx / 100.0) * content_w)
-                py = content_y0 + int((ry / 100.0) * content_h)
-                pw = int((rw / 100.0) * content_w)
-                ph = int((rh / 100.0) * content_h)
-
-                logo_abs = os.path.join(settings.MEDIA_ROOT, logo_rel)
-
-                final_bytes = _call_openai_logo(
-                    result1_abs=result1_abs,
-                    logo_abs=logo_abs,
-                    rect_pixels=(px, py, pw, ph)
-                )
-                final_rel = f'uploads/output/Resultado_final_{uuid4()}.jpg'
-                final_abs = os.path.join(settings.MEDIA_ROOT, final_rel)
-                with open(final_abs, 'wb') as f:
-                    f.write(final_bytes)
-                final_url = settings.MEDIA_URL + final_rel
-
         request.session.pop('work', None)
         request.session.pop('logo', None)
 
         return render(request, 'products/result.html', {
             'result1_url': result1_url,
             'final_url': final_url,
-            'used_logo': selection.get('follow_logo', False),
+            'used_logo': False,
         })
     except Exception:
         logger.exception("Fallo inesperado en result_view")
