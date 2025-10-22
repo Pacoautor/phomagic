@@ -111,23 +111,27 @@ def load_prompt_for_view(source_folder: Path, chosen_view_num: int) -> str:
 
 def enhance_mockup(abs_path_in, abs_path_out):
     """
-    Postpro ligero para dar más relieve y claridad al tejido.
+    Postpro ligero para dar más relieve y claridad al tejido + corrección gamma (Photoshop 1.30).
     - Micro-contraste (UnsharpMask)
-    - Contraste y nitidez global suaves
+    - Contraste y nitidez suaves
+    - Gamma equivalente a Niveles 1.30 en PS (aclara medios tonos)
     """
-        # Claridad local (micro-contraste)
+    # Cargar imagen
+    img = Image.open(abs_path_in).convert('RGB')
+
+    # Claridad local (micro-contraste)
     img = img.filter(ImageFilter.UnsharpMask(radius=2, percent=60, threshold=3))
 
-    # Ajustes suaves globales
+    # Ajustes globales suaves
     img = ImageEnhance.Contrast(img).enhance(1.06)
     img = ImageEnhance.Sharpness(img).enhance(1.08)
 
-    # --- Corrección gamma (equivalente a Photoshop 1.30) ---
-    gamma = 1 / 1.30  # Photoshop 1.30 aclara → usamos 0.77 para el mismo efecto
+    # Corrección gamma: Photoshop 1.30 aclara -> usar 1/1.30 ≈ 0.77
+    gamma = 1 / 1.30
     lut = [min(255, int((i / 255.0) ** gamma * 255 + 0.5)) for i in range(256)]
-    img = img.point(lut * 3)
-    # --------------------------------------------------------
+    img = img.point(lut * 3)  # aplicar a R,G,B
 
+    # Guardar
     img.save(abs_path_out, quality=95)
 
 
