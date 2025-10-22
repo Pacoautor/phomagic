@@ -235,21 +235,23 @@ def upload_photo(request):
 # === LLAMADA A OPENAI: images.edits (prompt + imagen del cliente) ===
 def _call_openai_edit(client_abs, prompt_text):
     """
-    Usa la API de imágenes (images.edits) para enviar:
+    Usa la API de imágenes con 'edit' (singular) para enviar:
     - prompt: texto (del .docx de la vista)
     - image: la foto que subió el cliente
-    Devuelve bytes de la imagen generada.
+    Devuelve bytes de la imagen generada (PNG/JPG en base64).
     """
     with open(client_abs, "rb") as f:
-        response = client.images.edits(
+        resp = client.images.edit(          # <- OJO: 'edit' (singular)
             model="gpt-image-1",
-            image=[f],            # imagen de entrada
-            prompt=prompt_text,   # instrucciones
+            image=[f],                      # imagen de entrada
+            prompt=prompt_text,
             size="1024x1024",
         )
 
-    result_b64 = response.data[0].b64_json
-    return base64.b64decode(result_b64)
+    img_b64 = resp.data[0].b64_json
+    if not img_b64:
+        raise ValueError("OpenAI no devolvió imagen en b64_json.")
+    return base64.b64decode(img_b64)
 
 
 # ==========================================
