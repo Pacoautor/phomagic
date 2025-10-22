@@ -3,6 +3,7 @@ import os
 import io
 import logging
 import unicodedata
+import mimetypes
 from uuid import uuid4
 from pathlib import Path
 from django.conf import settings
@@ -105,18 +106,14 @@ def paste_logo_on_area(base_img: Image.Image, logo_img: Image.Image, rect):
 def load_prompt_for_view(source_folder: Path, chosen_view_num: int) -> str:
     """
     Busca un archivo .docx en la carpeta de la VISTA ORIGINAL (no en media/),
-    por ejemplo Prompt_camiseta_1.docx, y devuelve su texto completo.
+    por ejemplo Prompt_camiseta_1.docx, y devuelve su texto.
     """
     folder = Path(source_folder)
     if not folder.is_dir():
         folder = folder.parent
 
-    # 1º intento: *_<num>.docx (ej. *_1.docx)
-    candidates = list(folder.glob(f"*_{chosen_view_num}.docx"))
-    # 2º intento: cualquier .docx de la carpeta
-    if not candidates:
-        candidates = list(folder.glob("*.docx"))
-
+    # 1º: *_<num>.docx (ej. *_1.docx)  |  2º: cualquier .docx
+    candidates = list(folder.glob(f"*_{chosen_view_num}.docx")) or list(folder.glob("*.docx"))
     if not candidates:
         raise FileNotFoundError(f"No se encontró prompt .docx en {folder}")
 
@@ -193,8 +190,7 @@ def upload_photo(request):
                     messages.error(request, 'No se encontró la vista seleccionada.')
                     return redirect('products:upload_photo')
 
-                # Copiamos la imagen de líneas a media (para miniatura/preview),
-                # pero también guardamos la CARPETA ORIGINAL para leer el .docx
+                # Copia a media (para miniaturas) y guarda carpeta ORIGINAL para el .docx
                 line_url, line_abs = copy_to_media_and_get_url(chosen_abs)
                 if not line_abs:
                     messages.error(request, "No se pudo preparar la vista seleccionada.")
@@ -203,10 +199,10 @@ def upload_photo(request):
                 request.session['work'] = {
                     'client_input_rel': input_rel,
                     'client_url': client_url,
-                    'line_abs': line_abs,                # copia en media (por si la muestras)
+                    'line_abs': line_abs,
                     'line_url': line_url,
                     'chosen_view_num': chosen_view_num,
-                    'line_src_dir': str(Path(chosen_abs).parent),  # <-- carpeta original de la vista
+                    'line_src_dir': str(Path(chosen_abs).parent),  # <-- importante
                 }
 
                 return redirect('products:result')
@@ -237,44 +233,45 @@ def upload_photo(request):
         return redirect('products:select_category')
 
 
-# === FUNCIÓN DE LLAMADA A OPENAI CON IMAGEN DEL CLIENTE ===
+# === LLAMADA A OPENAI (Responses) CON IMAGEN DEL CLIENTE ===
 def _call_openai_edit(client_abs, prompt_text):
     """
-    Envía a OpenAI el prompt (texto) y la imagen subida por el cliente.
-    Usa Responses multimodal.
+    Envía a OpenAI el prompt (texto) y la imagen subida por el cliente usando Responses.
+    La imagen se pasa como image_url con un Data URL (data:<mime>;base64,...).
     """
+    # Leer imagen y crear data URL
+    mime, _ = mimetypes.guess_type(client_abs)
+    if not mime:
+        mime = "image/png"
     with open(client_abs, "rb") as f:
-        img_b64 = base64.b64encode(f.read()).decode("utf-8")
+        data_b64 = base64.b64encode(f.read()).decode("utf-8")
+    data_url = f"data:{mime};base64,{data_b64}"
 
     response = client.responses.create(
-        model="gpt-4o-mini",
+        model="gpt-4o",
         input=[
             {
                 "role": "user",
                 "content": [
                     {"type": "input_text", "text": prompt_text},
-                    {"type": "input_image", "image_data": img_b64}
+                    {"type": "input_image", "image_url": data_url}
                 ]
             }
         ]
+        # Nota: no pasamos 'size' ni 'modalities' para evitar parámetros no soportados.
     )
 
     # Extraer imagen base64 de la respuesta
     image_b64 = None
-    # response.output puede ser lista de bloques
     out = getattr(response, "output", None) or []
     for item in out:
-        if isinstance(item, dict) and item.get("type") == "image":
-            # formato dict
-            image_b64 = item.get("image", {}).get("base64")
+        # SDK puede devolver dicts o objetos
+        t = item.get("type") if isinstance(item, dict) else getattr(item, "type", None)
+        if t == "image":
+            img = item.get("image") if isinstance(item, dict) else getattr(item, "image", None)
+            image_b64 = (img.get("base64") if isinstance(img, dict) else getattr(img, "base64", None))
             if image_b64:
                 break
-        else:
-            # algunos SDK devuelven objetos con atributos
-            t = getattr(item, "type", None)
-            if t == "image":
-                img = getattr(item, "image", None)
-                image_b64 = getattr(img, "base64", None)
 
     if not image_b64:
         raise ValueError("La respuesta de OpenAI no contiene imagen.")
@@ -307,7 +304,7 @@ def result_view(request):
         client_abs = os.path.join(settings.MEDIA_ROOT, client_rel)
         chosen_view_num = work['chosen_view_num']
 
-        # 🔑 Usar la CARPETA ORIGINAL de la vista para cargar el prompt .docx
+        # Carpeta ORIGINAL de la vista para leer el prompt .docx
         line_src_dir = work.get('line_src_dir')
         if not line_src_dir:
             messages.error(request, "No se encontró la carpeta de la vista para leer el prompt.")
