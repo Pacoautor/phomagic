@@ -102,21 +102,27 @@ def paste_logo_on_area(base_img: Image.Image, logo_img: Image.Image, rect):
     return base_rgba.convert('RGB')
 
 
-def load_prompt_for_view(line_abs: str, chosen_view_num: int) -> str:
+def load_prompt_for_view(source_folder: Path, chosen_view_num: int) -> str:
     """
-    Busca un archivo .docx en la carpeta de la vista (por ejemplo Prompt_camiseta_1.docx)
-    y devuelve su texto completo.
+    Busca un archivo .docx en la carpeta de la VISTA ORIGINAL (no en media/),
+    por ejemplo Prompt_camiseta_1.docx, y devuelve su texto completo.
     """
-    folder = Path(line_abs).parent
+    folder = Path(source_folder)
+    if not folder.is_dir():
+        folder = folder.parent
+
+    # 1º intento: *_<num>.docx (ej. *_1.docx)
     candidates = list(folder.glob(f"*_{chosen_view_num}.docx"))
+    # 2º intento: cualquier .docx de la carpeta
     if not candidates:
         candidates = list(folder.glob("*.docx"))
+
     if not candidates:
         raise FileNotFoundError(f"No se encontró prompt .docx en {folder}")
 
     doc = Document(candidates[0])
     text = "\n".join(p.text for p in doc.paragraphs).strip()
-    logger.info(f"Usando prompt: {candidates[0].name}")
+    logger.info(f"Usando prompt: {candidates[0].name} en {folder}")
     return text
 
 
@@ -187,6 +193,8 @@ def upload_photo(request):
                     messages.error(request, 'No se encontró la vista seleccionada.')
                     return redirect('products:upload_photo')
 
+                # Copiamos la imagen de líneas a media (para miniatura/preview),
+                # pero también guardamos la CARPETA ORIGINAL para leer el .docx
                 line_url, line_abs = copy_to_media_and_get_url(chosen_abs)
                 if not line_abs:
                     messages.error(request, "No se pudo preparar la vista seleccionada.")
@@ -195,9 +203,10 @@ def upload_photo(request):
                 request.session['work'] = {
                     'client_input_rel': input_rel,
                     'client_url': client_url,
-                    'line_abs': line_abs,
+                    'line_abs': line_abs,                # copia en media (por si la muestras)
                     'line_url': line_url,
                     'chosen_view_num': chosen_view_num,
+                    'line_src_dir': str(Path(chosen_abs).parent),  # <-- carpeta original de la vista
                 }
 
                 return redirect('products:result')
@@ -232,7 +241,7 @@ def upload_photo(request):
 def _call_openai_edit(client_abs, prompt_text):
     """
     Envía a OpenAI el prompt (texto) y la imagen subida por el cliente.
-    Usa el modelo GPT-4o para generar una imagen coherente con el prompt.
+    Usa Responses multimodal.
     """
     with open(client_abs, "rb") as f:
         img_b64 = base64.b64encode(f.read()).decode("utf-8")
@@ -250,12 +259,22 @@ def _call_openai_edit(client_abs, prompt_text):
         ]
     )
 
-    # Buscar la salida de imagen en base64
+    # Extraer imagen base64 de la respuesta
     image_b64 = None
-    for item in response.output:
-        if item["type"] == "image":
-            image_b64 = item["image"]["base64"]
-            break
+    # response.output puede ser lista de bloques
+    out = getattr(response, "output", None) or []
+    for item in out:
+        if isinstance(item, dict) and item.get("type") == "image":
+            # formato dict
+            image_b64 = item.get("image", {}).get("base64")
+            if image_b64:
+                break
+        else:
+            # algunos SDK devuelven objetos con atributos
+            t = getattr(item, "type", None)
+            if t == "image":
+                img = getattr(item, "image", None)
+                image_b64 = getattr(img, "base64", None)
 
     if not image_b64:
         raise ValueError("La respuesta de OpenAI no contiene imagen.")
@@ -287,10 +306,14 @@ def result_view(request):
         client_rel = work['client_input_rel']
         client_abs = os.path.join(settings.MEDIA_ROOT, client_rel)
         chosen_view_num = work['chosen_view_num']
-        line_abs = work['line_abs']
 
-        # Cargar prompt de la vista
-        prompt_text = load_prompt_for_view(line_abs, chosen_view_num)
+        # 🔑 Usar la CARPETA ORIGINAL de la vista para cargar el prompt .docx
+        line_src_dir = work.get('line_src_dir')
+        if not line_src_dir:
+            messages.error(request, "No se encontró la carpeta de la vista para leer el prompt.")
+            return redirect('products:upload_photo')
+
+        prompt_text = load_prompt_for_view(Path(line_src_dir), chosen_view_num)
 
         # Llamada a OpenAI con la imagen subida y el prompt
         result1_bytes = _call_openai_edit(
@@ -306,6 +329,7 @@ def result_view(request):
 
         final_url = result1_url
 
+        # Limpiar sesión
         request.session.pop('work', None)
         request.session.pop('logo', None)
 
