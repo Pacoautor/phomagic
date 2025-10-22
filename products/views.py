@@ -115,11 +115,21 @@ def enhance_mockup(abs_path_in, abs_path_out):
     - Micro-contraste (UnsharpMask)
     - Contraste y nitidez global suaves
     """
-    img = Image.open(abs_path_in).convert('RGB')
+        # Claridad local (micro-contraste)
     img = img.filter(ImageFilter.UnsharpMask(radius=2, percent=60, threshold=3))
+
+    # Ajustes suaves globales
     img = ImageEnhance.Contrast(img).enhance(1.06)
     img = ImageEnhance.Sharpness(img).enhance(1.08)
+
+    # --- Corrección gamma (equivalente a Photoshop 1.30) ---
+    gamma = 1 / 1.30  # Photoshop 1.30 aclara → usamos 0.77 para el mismo efecto
+    lut = [min(255, int((i / 255.0) ** gamma * 255 + 0.5)) for i in range(256)]
+    img = img.point(lut * 3)
+    # --------------------------------------------------------
+
     img.save(abs_path_out, quality=95)
+
 
 # ===========================
 #          VISTAS
