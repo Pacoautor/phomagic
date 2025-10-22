@@ -196,11 +196,8 @@ def upload_photo(request):
         messages.error(request, "Ha ocurrido un error al cargar la página. Inténtalo de nuevo.")
         return redirect('products:select_category')
 
-# === NUEVA VERSIÓN LIMPIA ===
+# === VERSIÓN FUNCIONAL PARA OPENAI ===
 def _call_openai_edit(client_abs, category, subcategory, chosen_view_num, background_hex):
-    with open(client_abs, "rb") as f:
-        img_b64 = base64.b64encode(f.read()).decode("utf-8")
-
     prompt = (
         f"Genera una imagen realista de producto.\n"
         f"Categoría: {category}. Subcategoría: {subcategory}. Vista: {chosen_view_num}.\n"
@@ -208,12 +205,10 @@ def _call_openai_edit(client_abs, category, subcategory, chosen_view_num, backgr
         "No muestres siluetas ni líneas de guía. Sin marcos ni contornos."
     )
 
+    # ⚠️ En esta versión solo se envía el texto del prompt (string)
     out = client.images.generate(
         model="gpt-image-1",
-        prompt=[
-            {"type": "text", "text": prompt},
-            {"type": "input_image", "image": img_b64},
-        ],
+        prompt=prompt,
         size="1024x1024",
     )
 
