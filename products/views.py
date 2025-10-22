@@ -12,6 +12,8 @@ from PIL import Image, ImageOps
 from openai import OpenAI
 import base64
 from docx import Document
+from PIL import ImageFilter, ImageEnhance
+
 
 from .forms import SelectCategoryForm, UploadPhotoForm, ChooseViewForm, LogoForm
 
@@ -121,6 +123,22 @@ def load_prompt_for_view(source_folder: Path, chosen_view_num: int) -> str:
     logger.info(f"Usando prompt: {candidates[0].name} en {folder}")
     return text
 
+def enhance_mockup(abs_path_in, abs_path_out):
+    """
+    Postpro ligero para dar más relieve y claridad al tejido.
+    - Aumenta un poco el micro-contraste (UnsharpMask)
+    - Sube muy ligeramente el contraste y la nitidez global
+    """
+    img = Image.open(abs_path_in).convert('RGB')
+
+    # Claridad local (micro-contraste)
+    img = img.filter(ImageFilter.UnsharpMask(radius=2, percent=60, threshold=3))
+
+    # Ajustes suaves globales
+    img = ImageEnhance.Contrast(img).enhance(1.06)
+    img = ImageEnhance.Sharpness(img).enhance(1.08)
+
+    img.save(abs_path_out, quality=95)
 
 # ===========================
 #          VISTAS
@@ -295,11 +313,16 @@ def result_view(request):
 
         result1_rel = f'uploads/output/Resultado_1_{uuid4()}.jpg'
         result1_abs = os.path.join(settings.MEDIA_ROOT, result1_rel)
-        with open(result1_abs, 'wb') as f:
-            f.write(result1_bytes)
-        result1_url = settings.MEDIA_URL + result1_rel
+       with open(result1_abs, 'wb') as f:
+    f.write(result1_bytes)
 
-        final_url = result1_url
+# --- APLICAR TOQUE FINAL DE ILUMINACIÓN Y RELIEVE ---
+post_rel = f'uploads/output/Resultado_1_post_{uuid4()}.jpg'
+post_abs = os.path.join(settings.MEDIA_ROOT, post_rel)
+enhance_mockup(result1_abs, post_abs)
+result1_url = settings.MEDIA_URL + post_rel
+# ----------------------------------------------------
+
 
         # Limpiar sesión
         request.session.pop('work', None)
