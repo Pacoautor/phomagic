@@ -11,6 +11,7 @@ from django.contrib import messages
 from PIL import Image, ImageOps
 from openai import OpenAI
 import base64
+from docx import Document
 
 from .forms import SelectCategoryForm, UploadPhotoForm, ChooseViewForm, LogoForm
 
@@ -22,15 +23,22 @@ _APP_DIR = Path(__file__).resolve().parent
 _LINEAS_CANDIDATES = [_APP_DIR / "lineas", _APP_DIR / "Lineas"]
 LINE_ROOT = next((p for p in _LINEAS_CANDIDATES if p.is_dir()), _LINEAS_CANDIDATES[0])
 
+
+# ===========================
+#   FUNCIONES AUXILIARES
+# ===========================
+
 def ensure_dirs():
     os.makedirs(os.path.join(settings.MEDIA_ROOT, 'uploads', 'input'), exist_ok=True)
     os.makedirs(os.path.join(settings.MEDIA_ROOT, 'uploads', 'output'), exist_ok=True)
+
 
 def _normalize(s: str) -> str:
     s = (s or "").lower()
     s = s.replace("(", "").replace(")", "").replace("[", "").replace("]", "")
     s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")
     return s.strip()
+
 
 def list_line_thumbnails(category: str, subcategory: str):
     try:
@@ -63,6 +71,7 @@ def list_line_thumbnails(category: str, subcategory: str):
         logger.exception("Error listando miniaturas")
         return []
 
+
 def copy_to_media_and_get_url(abs_path):
     ensure_dirs()
     try:
@@ -79,8 +88,10 @@ def copy_to_media_and_get_url(abs_path):
         out.write(data)
     return settings.MEDIA_URL + fname, media_abs
 
+
 def add_white_border(img: Image.Image, border_px=50):
     return ImageOps.expand(img, border=border_px, fill='white')
+
 
 def paste_logo_on_area(base_img: Image.Image, logo_img: Image.Image, rect):
     x, y, w, h = rect
@@ -89,6 +100,25 @@ def paste_logo_on_area(base_img: Image.Image, logo_img: Image.Image, rect):
     base_rgba = base_img.convert('RGBA')
     base_rgba.paste(logo, (int(x), int(y)), logo)
     return base_rgba.convert('RGB')
+
+
+def load_prompt_for_view(line_abs: str, chosen_view_num: int) -> str:
+    """
+    Busca un archivo .docx en la carpeta de la vista (por ejemplo Prompt_camiseta_1.docx)
+    y devuelve su texto completo.
+    """
+    folder = Path(line_abs).parent
+    candidates = list(folder.glob(f"*_{chosen_view_num}.docx"))
+    if not candidates:
+        candidates = list(folder.glob("*.docx"))
+    if not candidates:
+        raise FileNotFoundError(f"No se encontró prompt .docx en {folder}")
+
+    doc = Document(candidates[0])
+    text = "\n".join(p.text for p in doc.paragraphs).strip()
+    logger.info(f"Usando prompt: {candidates[0].name}")
+    return text
+
 
 # ===========================
 #          VISTAS
@@ -103,6 +133,7 @@ def select_category(request):
     else:
         form = SelectCategoryForm()
     return render(request, 'products/select_category.html', {'form': form})
+
 
 def upload_photo(request):
     try:
@@ -196,24 +227,41 @@ def upload_photo(request):
         messages.error(request, "Ha ocurrido un error al cargar la página. Inténtalo de nuevo.")
         return redirect('products:select_category')
 
-# === VERSIÓN FUNCIONAL PARA OPENAI ===
-def _call_openai_edit(client_abs, category, subcategory, chosen_view_num, background_hex):
-    prompt = (
-        f"Genera una imagen realista de producto.\n"
-        f"Categoría: {category}. Subcategoría: {subcategory}. Vista: {chosen_view_num}.\n"
-        f"Fondo: {background_hex}. Coloca la imagen del cliente como diseño principal.\n"
-        "No muestres siluetas ni líneas de guía. Sin marcos ni contornos."
+
+# === FUNCIÓN DE LLAMADA A OPENAI CON IMAGEN DEL CLIENTE ===
+def _call_openai_edit(client_abs, prompt_text):
+    """
+    Envía a OpenAI el prompt (texto) y la imagen subida por el cliente.
+    Usa el modelo GPT-4o para generar una imagen coherente con el prompt.
+    """
+    with open(client_abs, "rb") as f:
+        img_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+    response = client.responses.create(
+        model="gpt-4o-mini",
+        input=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": prompt_text},
+                    {"type": "input_image", "image_data": img_b64}
+                ]
+            }
+        ]
     )
 
-    # ⚠️ En esta versión solo se envía el texto del prompt (string)
-    out = client.images.generate(
-        model="gpt-image-1",
-        prompt=prompt,
-        size="1024x1024",
-    )
+    # Buscar la salida de imagen en base64
+    image_b64 = None
+    for item in response.output:
+        if item["type"] == "image":
+            image_b64 = item["image"]["base64"]
+            break
 
-    result_b64 = out.data[0].b64_json
-    return base64.b64decode(result_b64)
+    if not image_b64:
+        raise ValueError("La respuesta de OpenAI no contiene imagen.")
+
+    return base64.b64decode(image_b64)
+
 
 # ==========================================
 
@@ -225,6 +273,7 @@ def _call_openai_logo(result1_abs, logo_abs, rect_pixels):
     result.save(buf, format='JPEG', quality=95)
     return buf.getvalue()
 
+
 def result_view(request):
     try:
         selection = request.session.get('selection')
@@ -234,21 +283,19 @@ def result_view(request):
             return redirect('products:select_category')
 
         ensure_dirs()
-        background_hex = selection['background']
-        category = selection['category']
-        subcategory = selection['subcategory']
 
         client_rel = work['client_input_rel']
         client_abs = os.path.join(settings.MEDIA_ROOT, client_rel)
         chosen_view_num = work['chosen_view_num']
+        line_abs = work['line_abs']
 
-        # 👉 Genera el resultado con OpenAI
+        # Cargar prompt de la vista
+        prompt_text = load_prompt_for_view(line_abs, chosen_view_num)
+
+        # Llamada a OpenAI con la imagen subida y el prompt
         result1_bytes = _call_openai_edit(
             client_abs=client_abs,
-            category=category,
-            subcategory=subcategory,
-            chosen_view_num=chosen_view_num,
-            background_hex=background_hex,
+            prompt_text=prompt_text,
         )
 
         result1_rel = f'uploads/output/Resultado_1_{uuid4()}.jpg'
