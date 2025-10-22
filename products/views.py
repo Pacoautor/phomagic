@@ -8,12 +8,10 @@ from pathlib import Path
 from django.conf import settings
 from django.shortcuts import render, redirect
 from django.contrib import messages
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageFilter, ImageEnhance
 from openai import OpenAI
 import base64
 from docx import Document
-from PIL import ImageFilter, ImageEnhance
-
 
 from .forms import SelectCategoryForm, UploadPhotoForm, ChooseViewForm, LogoForm
 
@@ -25,7 +23,6 @@ _APP_DIR = Path(__file__).resolve().parent
 _LINEAS_CANDIDATES = [_APP_DIR / "lineas", _APP_DIR / "Lineas"]
 LINE_ROOT = next((p for p in _LINEAS_CANDIDATES if p.is_dir()), _LINEAS_CANDIDATES[0])
 
-
 # ===========================
 #   FUNCIONES AUXILIARES
 # ===========================
@@ -34,13 +31,11 @@ def ensure_dirs():
     os.makedirs(os.path.join(settings.MEDIA_ROOT, 'uploads', 'input'), exist_ok=True)
     os.makedirs(os.path.join(settings.MEDIA_ROOT, 'uploads', 'output'), exist_ok=True)
 
-
 def _normalize(s: str) -> str:
     s = (s or "").lower()
     s = s.replace("(", "").replace(")", "").replace("[", "").replace("]", "")
     s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")
     return s.strip()
-
 
 def list_line_thumbnails(category: str, subcategory: str):
     try:
@@ -48,7 +43,6 @@ def list_line_thumbnails(category: str, subcategory: str):
         if not Path(LINE_ROOT).exists():
             logger.warning("LINE_ROOT no existe: %s", LINE_ROOT)
             return []
-
         folder_path = None
         for folder in os.listdir(LINE_ROOT):
             if _normalize(folder) == normalized_target:
@@ -57,7 +51,6 @@ def list_line_thumbnails(category: str, subcategory: str):
         if folder_path is None or not folder_path.is_dir():
             logger.info("No encontrada carpeta de vistas para: %s", normalized_target)
             return []
-
         views = []
         for name in sorted(os.listdir(folder_path)):
             if name.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
@@ -72,7 +65,6 @@ def list_line_thumbnails(category: str, subcategory: str):
     except Exception:
         logger.exception("Error listando miniaturas")
         return []
-
 
 def copy_to_media_and_get_url(abs_path):
     ensure_dirs()
@@ -90,10 +82,8 @@ def copy_to_media_and_get_url(abs_path):
         out.write(data)
     return settings.MEDIA_URL + fname, media_abs
 
-
 def add_white_border(img: Image.Image, border_px=50):
     return ImageOps.expand(img, border=border_px, fill='white')
-
 
 def paste_logo_on_area(base_img: Image.Image, logo_img: Image.Image, rect):
     x, y, w, h = rect
@@ -103,7 +93,6 @@ def paste_logo_on_area(base_img: Image.Image, logo_img: Image.Image, rect):
     base_rgba.paste(logo, (int(x), int(y)), logo)
     return base_rgba.convert('RGB')
 
-
 def load_prompt_for_view(source_folder: Path, chosen_view_num: int) -> str:
     """
     Busca un archivo .docx en la carpeta de la VISTA ORIGINAL (no en media/),
@@ -112,12 +101,9 @@ def load_prompt_for_view(source_folder: Path, chosen_view_num: int) -> str:
     folder = Path(source_folder)
     if not folder.is_dir():
         folder = folder.parent
-
-    # 1º: *_<num>.docx (ej. *_1.docx)  |  2º: cualquier .docx
     candidates = list(folder.glob(f"*_{chosen_view_num}.docx")) or list(folder.glob("*.docx"))
     if not candidates:
         raise FileNotFoundError(f"No se encontró prompt .docx en {folder}")
-
     doc = Document(candidates[0])
     text = "\n".join(p.text for p in doc.paragraphs).strip()
     logger.info(f"Usando prompt: {candidates[0].name} en {folder}")
@@ -126,18 +112,13 @@ def load_prompt_for_view(source_folder: Path, chosen_view_num: int) -> str:
 def enhance_mockup(abs_path_in, abs_path_out):
     """
     Postpro ligero para dar más relieve y claridad al tejido.
-    - Aumenta un poco el micro-contraste (UnsharpMask)
-    - Sube muy ligeramente el contraste y la nitidez global
+    - Micro-contraste (UnsharpMask)
+    - Contraste y nitidez global suaves
     """
     img = Image.open(abs_path_in).convert('RGB')
-
-    # Claridad local (micro-contraste)
     img = img.filter(ImageFilter.UnsharpMask(radius=2, percent=60, threshold=3))
-
-    # Ajustes suaves globales
     img = ImageEnhance.Contrast(img).enhance(1.06)
     img = ImageEnhance.Sharpness(img).enhance(1.08)
-
     img.save(abs_path_out, quality=95)
 
 # ===========================
@@ -153,7 +134,6 @@ def select_category(request):
     else:
         form = SelectCategoryForm()
     return render(request, 'products/select_category.html', {'form': form})
-
 
 def upload_photo(request):
     try:
@@ -219,7 +199,7 @@ def upload_photo(request):
                     'line_abs': line_abs,
                     'line_url': line_url,
                     'chosen_view_num': chosen_view_num,
-                    'line_src_dir': str(Path(chosen_abs).parent),  # <-- importante
+                    'line_src_dir': str(Path(chosen_abs).parent),  # carpeta original (para .docx)
                 }
 
                 return redirect('products:result')
@@ -246,34 +226,30 @@ def upload_photo(request):
 
     except Exception:
         logger.exception("Fallo inesperado en upload_photo")
-    messages.error(request, "Ha ocurrido un error al cargar la página. Inténtalo de nuevo.")
-    return redirect('products:select_category')
+        messages.error(request, "Ha ocurrido un error al cargar la página. Inténtalo de nuevo.")
+        return redirect('products:select_category')
 
-
-# === LLAMADA A OPENAI: images.edits (prompt + imagen del cliente) ===
+# === LLAMADA A OPENAI: edit (prompt + imagen del cliente) ===
 def _call_openai_edit(client_abs, prompt_text):
     """
-    Usa la API de imágenes con 'edit' (singular) para enviar:
+    Usa la API de imágenes con 'edit' (singular):
     - prompt: texto (del .docx de la vista)
     - image: la foto que subió el cliente
-    Devuelve bytes de la imagen generada (PNG/JPG en base64).
+    Devuelve bytes de la imagen generada (base64).
     """
     with open(client_abs, "rb") as f:
-        resp = client.images.edit(          # <- OJO: 'edit' (singular)
+        resp = client.images.edit(
             model="gpt-image-1",
-            image=[f],                      # imagen de entrada
-            prompt=prompt_text,
+            image=[f],               # imagen de entrada
+            prompt=prompt_text,      # instrucciones
             size="1024x1024",
         )
-
     img_b64 = resp.data[0].b64_json
     if not img_b64:
         raise ValueError("OpenAI no devolvió imagen en b64_json.")
     return base64.b64decode(img_b64)
 
-
 # ==========================================
-
 def _call_openai_logo(result1_abs, logo_abs, rect_pixels):
     base = Image.open(result1_abs).convert('RGB')
     logo = Image.open(logo_abs).convert('RGBA')
@@ -281,7 +257,6 @@ def _call_openai_logo(result1_abs, logo_abs, rect_pixels):
     buf = io.BytesIO()
     result.save(buf, format='JPEG', quality=95)
     return buf.getvalue()
-
 
 def result_view(request):
     try:
@@ -311,18 +286,19 @@ def result_view(request):
             prompt_text=prompt_text,
         )
 
+        # Guardar imagen base
         result1_rel = f'uploads/output/Resultado_1_{uuid4()}.jpg'
         result1_abs = os.path.join(settings.MEDIA_ROOT, result1_rel)
-       with open(result1_abs, 'wb') as f:
-    f.write(result1_bytes)
+        with open(result1_abs, 'wb') as f:
+            f.write(result1_bytes)
 
-# --- APLICAR TOQUE FINAL DE ILUMINACIÓN Y RELIEVE ---
-post_rel = f'uploads/output/Resultado_1_post_{uuid4()}.jpg'
-post_abs = os.path.join(settings.MEDIA_ROOT, post_rel)
-enhance_mockup(result1_abs, post_abs)
-result1_url = settings.MEDIA_URL + post_rel
-# ----------------------------------------------------
-
+        # --- Postpro: relieve/claridad ---
+        post_rel = f'uploads/output/Resultado_1_post_{uuid4()}.jpg'
+        post_abs = os.path.join(settings.MEDIA_ROOT, post_rel)
+        enhance_mockup(result1_abs, post_abs)
+        result1_url = settings.MEDIA_URL + post_rel
+        final_url = result1_url
+        # ---------------------------------
 
         # Limpiar sesión
         request.session.pop('work', None)
