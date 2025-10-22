@@ -3,7 +3,6 @@ import os
 import io
 import logging
 import unicodedata
-import mimetypes
 from uuid import uuid4
 from pathlib import Path
 from django.conf import settings
@@ -229,54 +228,28 @@ def upload_photo(request):
 
     except Exception:
         logger.exception("Fallo inesperado en upload_photo")
-        messages.error(request, "Ha ocurrido un error al cargar la página. Inténtalo de nuevo.")
-        return redirect('products:select_category')
+    messages.error(request, "Ha ocurrido un error al cargar la página. Inténtalo de nuevo.")
+    return redirect('products:select_category')
 
 
-# === LLAMADA A OPENAI (Responses) CON IMAGEN DEL CLIENTE ===
+# === LLAMADA A OPENAI: images.edits (prompt + imagen del cliente) ===
 def _call_openai_edit(client_abs, prompt_text):
     """
-    Envía a OpenAI el prompt (texto) y la imagen subida por el cliente usando Responses.
-    La imagen se pasa como image_url con un Data URL (data:<mime>;base64,...).
+    Usa la API de imágenes (images.edits) para enviar:
+    - prompt: texto (del .docx de la vista)
+    - image: la foto que subió el cliente
+    Devuelve bytes de la imagen generada.
     """
-    # Leer imagen y crear data URL
-    mime, _ = mimetypes.guess_type(client_abs)
-    if not mime:
-        mime = "image/png"
     with open(client_abs, "rb") as f:
-        data_b64 = base64.b64encode(f.read()).decode("utf-8")
-    data_url = f"data:{mime};base64,{data_b64}"
+        response = client.images.edits(
+            model="gpt-image-1",
+            image=[f],            # imagen de entrada
+            prompt=prompt_text,   # instrucciones
+            size="1024x1024",
+        )
 
-    response = client.responses.create(
-        model="gpt-4o",
-        input=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "input_text", "text": prompt_text},
-                    {"type": "input_image", "image_url": data_url}
-                ]
-            }
-        ]
-        # Nota: no pasamos 'size' ni 'modalities' para evitar parámetros no soportados.
-    )
-
-    # Extraer imagen base64 de la respuesta
-    image_b64 = None
-    out = getattr(response, "output", None) or []
-    for item in out:
-        # SDK puede devolver dicts o objetos
-        t = item.get("type") if isinstance(item, dict) else getattr(item, "type", None)
-        if t == "image":
-            img = item.get("image") if isinstance(item, dict) else getattr(item, "image", None)
-            image_b64 = (img.get("base64") if isinstance(img, dict) else getattr(img, "base64", None))
-            if image_b64:
-                break
-
-    if not image_b64:
-        raise ValueError("La respuesta de OpenAI no contiene imagen.")
-
-    return base64.b64decode(image_b64)
+    result_b64 = response.data[0].b64_json
+    return base64.b64decode(result_b64)
 
 
 # ==========================================
@@ -312,7 +285,7 @@ def result_view(request):
 
         prompt_text = load_prompt_for_view(Path(line_src_dir), chosen_view_num)
 
-        # Llamada a OpenAI con la imagen subida y el prompt
+        # Llamada a OpenAI con la imagen subida y el prompt (.docx)
         result1_bytes = _call_openai_edit(
             client_abs=client_abs,
             prompt_text=prompt_text,
