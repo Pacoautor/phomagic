@@ -293,6 +293,8 @@ def _call_openai_logo(result1_abs, logo_abs, rect_pixels):
 
 def result_view(request):
     try:
+	print("📸 POST recibido:", request.POST)
+
         selection = request.session.get('selection')
         work = request.session.get('work')
         if not selection or not work:
