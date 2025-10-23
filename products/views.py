@@ -1,11 +1,11 @@
-
-v# products/views.py
+# products/views.py
 import os
 import io
 import logging
 import unicodedata
 from uuid import uuid4
 from pathlib import Path
+
 from django.conf import settings
 from django.shortcuts import render, redirect
 from django.contrib import messages
