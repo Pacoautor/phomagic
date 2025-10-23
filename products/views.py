@@ -134,7 +134,6 @@ def enhance_mockup(abs_path_in, abs_path_out):
     # Guardar
     img.save(abs_path_out, quality=95)
 
-
 # ===========================
 #          VISTAS
 # ===========================
@@ -190,22 +189,20 @@ def upload_photo(request):
                         out.write(chunk)
                 client_url = settings.MEDIA_URL + input_rel
 
-                # Vista elegida
-                # Vista elegida (forzamos a leer primero lo que llega por POST)
-	raw_view = request.POST.get('view_number', '').strip()
-	try:
-    	chosen_view_num = int(raw_view) if raw_view else int(choose_view_form.cleaned_data['view_number'])
-	except Exception:
-   	 chosen_view_num = int(choose_view_form.cleaned_data['view_number'])
+                # Vista elegida (leer primero lo que llega por POST)
+                raw_view = request.POST.get('view_number', '').strip()
+                try:
+                    chosen_view_num = int(raw_view) if raw_view else int(choose_view_form.cleaned_data['view_number'])
+                except Exception:
+                    chosen_view_num = int(choose_view_form.cleaned_data['view_number'])
 
-	# Log opcional para depurar (lo verás en Render > Logs)
-	logger.info(f"[upload_photo] Vista seleccionada: {chosen_view_num}")
+                logger.info(f"[upload_photo] Vista seleccionada: {chosen_view_num}")
 
-	chosen_abs = None
-	for num, path in views_found:
-   	 if num == chosen_view_num:
-        	chosen_abs = path
-        	break
+                chosen_abs = None
+                for num, path in views_found:
+                    if num == chosen_view_num:
+                        chosen_abs = path
+                        break
 
                 if not chosen_abs:
                     messages.error(request, 'No se encontró la vista seleccionada.')
@@ -316,13 +313,13 @@ def result_view(request):
         with open(result1_abs, 'wb') as f:
             f.write(result1_bytes)
 
-        # --- Postpro: relieve/claridad ---
+        # --- Postpro: relieve/claridad + gamma ---
         post_rel = f'uploads/output/Resultado_1_post_{uuid4()}.jpg'
         post_abs = os.path.join(settings.MEDIA_ROOT, post_rel)
         enhance_mockup(result1_abs, post_abs)
         result1_url = settings.MEDIA_URL + post_rel
         final_url = result1_url
-        # ---------------------------------
+        # ----------------------------------------
 
         # Limpiar sesión
         request.session.pop('work', None)
@@ -337,3 +334,4 @@ def result_view(request):
         logger.exception("Fallo inesperado en result_view")
         messages.error(request, "Ha ocurrido un error generando el resultado.")
         return redirect('products:upload_photo')
+
