@@ -1,3 +1,4 @@
+
 # products/views.py
 import os
 import io
@@ -93,82 +94,62 @@ def paste_logo_on_area(base_img: Image.Image, logo_img: Image.Image, rect):
     base_rgba.paste(logo, (int(x), int(y)), logo)
     return base_rgba.convert('RGB')
 
-def load_prompt_for_view(source_folder: Path, chosen_view_num: int) -> str:
+def find_docx_for_view(source_folder: Path, chosen_view_num: int) -> Path:
     """
-    Devuelve el texto del .docx que corresponde EXACTAMENTE a la vista elegida.
-    Estricto y robusto ante:
-    - espacios en el nombre (p.ej. 'Prompt camiseta _2.docx')
-    - mayúsculas/minúsculas (.DOCX vs .docx)
-    - nombres con otros guiones o palabras
-    Si no encuentra, NO coge el primero al azar: lanza un error claro.
+    Devuelve la RUTA del .docx que corresponde EXACTAMENTE a la vista elegida.
+    Robusto ante espacios/mayúsculas: busca *_<num>.docx; si no, contiene _<num>.
+    Si no encuentra, lanza FileNotFoundError (no hace fallback al _1).
     """
     folder = Path(source_folder)
     if not folder.is_dir():
         folder = folder.parent
 
     want = str(chosen_view_num)
-
-    # Reunimos todos los .docx (cualquier casing)
     all_docx = [p for p in folder.iterdir() if p.is_file() and p.suffix.lower() == ".docx"]
 
-    # Normalizador de nombre para comparación robusta
     def norm_name(p: Path) -> str:
-        name = p.stem  # sin extensión
-        name = unicodedata.normalize("NFKD", name).lower()
-        name = name.replace(" ", "")  # quitamos espacios intermedios
+        name = p.stem
+        name = unicodedata.normalize("NFKD", name).lower().replace(" ", "")
         return name
 
-    # 1) Coincidencia exacta por sufijo: ..._<num>
     exact = [p for p in all_docx if norm_name(p).endswith(f"_{want}")]
     if exact:
-        chosen = exact[0]
-    else:
-        # 2) Coincidencia que contenga _<num> en cualquier parte
-        contains = [p for p in all_docx if f"_{want}" in norm_name(p)]
-        if contains:
-            chosen = contains[0]
-        else:
-            # 3) Coincidencia por dígitos finales en el nombre (…1, …2, etc.)
-            cand = None
-            for p in all_docx:
-                n = norm_name(p)
-                # extrae sufijo numérico si lo hay
-                tail = ""
-                for ch in reversed(n):
-                    if ch.isdigit():
-                        tail = ch + tail
-                    else:
-                        break
-                if tail and tail == want:
-                    cand = p
-                    break
-            if cand:
-                chosen = cand
+        return exact[0]
+
+    contains = [p for p in all_docx if f"_{want}" in norm_name(p)]
+    if contains:
+        return contains[0]
+
+    # sufijo numérico al final
+    for p in all_docx:
+        n = norm_name(p)
+        tail = ""
+        for ch in reversed(n):
+            if ch.isdigit():
+                tail = ch + tail
             else:
-                raise FileNotFoundError(
-                    f"No encontré un .docx para la vista {chosen_view_num} en {folder}. "
-                    f"Archivos .docx presentes: {[p.name for p in all_docx]}"
-                )
+                break
+        if tail and tail == want:
+            return p
 
-    # Leemos el .docx elegido
-    doc = Document(chosen)
-    text = "\n".join(p.text for p in doc.paragraphs).strip()
-    logger.info(f"Prompt seleccionado para vista {chosen_view_num}: {chosen.name} en {folder}")
-    return text
+    raise FileNotFoundError(
+        f"No encontré un .docx para la vista {chosen_view_num} en {folder}. "
+        f"Archivos .docx presentes: {[p.name for p in all_docx]}"
+    )
 
+def read_docx_text(path: Path) -> str:
+    doc = Document(path)
+    return "\n".join(p.text for p in doc.paragraphs).strip()
 
 def enhance_mockup(abs_path_in, abs_path_out):
     """
     Postpro ligero para dar más relieve y claridad al tejido + corrección gamma (Photoshop 1.30).
-    - Micro-contraste (UnsharpMask)
-    - Contraste y nitidez suaves
-    - Gamma equivalente a Niveles 1.30 en PS (aclara medios tonos)
     """
     img = Image.open(abs_path_in).convert('RGB')
     img = img.filter(ImageFilter.UnsharpMask(radius=2, percent=60, threshold=3))
     img = ImageEnhance.Contrast(img).enhance(1.06)
     img = ImageEnhance.Sharpness(img).enhance(1.08)
-    gamma = 1 / 1.30
+    gamma = 1 / 1.30  # equivalente a '1.30' en Niveles de Photoshop (centro)
     lut = [min(255, int((i / 255.0) ** gamma * 255 + 0.5)) for i in range(256)]
     img = img.point(lut * 3)
     img.save(abs_path_out, quality=95)
@@ -202,7 +183,6 @@ def upload_photo(request):
 
         if request.method == 'POST':
             upload_form = UploadPhotoForm(request.POST, request.FILES)
-            # elige por POST; el form ya no decide la vista
             choose_view_form = ChooseViewForm(request.POST, view_numbers=view_numbers)
             logo_form = LogoForm(request.POST, request.FILES)
 
@@ -218,7 +198,7 @@ def upload_photo(request):
 
             if upload_form.is_valid():
                 ensure_dirs()
-                # Guardar foto del cliente
+                # 1) Guardar foto del cliente
                 client_file = upload_form.cleaned_data['client_photo']
                 client_ext = os.path.splitext(client_file.name)[1].lower().lstrip('.')
                 input_rel = f'uploads/input/{uuid4()}.{client_ext}'
@@ -229,13 +209,15 @@ def upload_photo(request):
                         out.write(chunk)
                 client_url = settings.MEDIA_URL + input_rel
 
-                # Vista elegida: TOMARLA SOLO DEL POST
+                # 2) Leer vista del POST (obligatoria)
                 raw_view = (request.POST.get('view_number') or "").strip()
                 if not (raw_view.isdigit() and int(raw_view) in view_numbers):
                     messages.error(request, "Selecciona una vista válida.")
                     return redirect('products:upload_photo')
                 chosen_view_num = int(raw_view)
+                logger.info(f"[upload_photo] Vista seleccionada por el usuario: {chosen_view_num}")
 
+                # 3) Imagen de líneas elegida
                 chosen_abs = None
                 for num, path in views_found:
                     if num == chosen_view_num:
@@ -245,19 +227,24 @@ def upload_photo(request):
                     messages.error(request, 'No se encontró la vista seleccionada.')
                     return redirect('products:upload_photo')
 
-                # Copia a media y guarda ruta ORIGINAL para leer el .docx
+                # 4) Elegir el .docx EXACTO y guardar su ruta en sesión
+                prompt_docx = find_docx_for_view(Path(chosen_abs).parent, chosen_view_num)
+                logger.info(f"[upload_photo] Prompt DOCX elegido: {prompt_docx}")
+
+                # Copiar miniatura a media (opcional)
                 line_url, line_abs = copy_to_media_and_get_url(chosen_abs)
                 if not line_abs:
                     messages.error(request, "No se pudo preparar la vista seleccionada.")
                     return redirect('products:upload_photo')
 
+                # 5) Guardar TODO en sesión; no se volverá a deducir nada más tarde
                 request.session['work'] = {
                     'client_input_rel': input_rel,
                     'client_url': client_url,
                     'line_abs': line_abs,
                     'line_url': line_url,
                     'chosen_view_num': chosen_view_num,
-                    'line_src_dir': str(Path(chosen_abs).parent),
+                    'prompt_docx_path': str(prompt_docx),   # <- RUTA FIJA DEL .DOCX
                 }
 
                 return redirect('products:result')
@@ -289,12 +276,6 @@ def upload_photo(request):
 
 # === LLAMADA A OPENAI: edit (prompt + imagen del cliente) ===
 def _call_openai_edit(client_abs, prompt_text):
-    """
-    Usa la API de imágenes con 'edit' (singular):
-    - prompt: texto (del .docx de la vista)
-    - image: la foto que subió el cliente
-    Devuelve bytes de la imagen generada (base64).
-    """
     with open(client_abs, "rb") as f:
         resp = client.images.edit(
             model="gpt-image-1",
@@ -308,6 +289,7 @@ def _call_openai_edit(client_abs, prompt_text):
     return base64.b64decode(img_b64)
 
 # ==========================================
+
 def _call_openai_logo(result1_abs, logo_abs, rect_pixels):
     base = Image.open(result1_abs).convert('RGB')
     logo = Image.open(logo_abs).convert('RGBA')
@@ -318,9 +300,8 @@ def _call_openai_logo(result1_abs, logo_abs, rect_pixels):
 
 def result_view(request):
     try:
-        selection = request.session.get('selection')
         work = request.session.get('work')
-        if not selection or not work:
+        if not work:
             messages.error(request, "Vuelve a iniciar la selección.")
             return redirect('products:select_category')
 
@@ -328,21 +309,19 @@ def result_view(request):
 
         client_rel = work['client_input_rel']
         client_abs = os.path.join(settings.MEDIA_ROOT, client_rel)
-        chosen_view_num = work['chosen_view_num']
+        chosen_view_num = int(work['chosen_view_num'])
 
-        # Carpeta ORIGINAL de la vista para leer el prompt .docx
-        line_src_dir = work.get('line_src_dir')
-        if not line_src_dir:
-            messages.error(request, "No se encontró la carpeta de la vista para leer el prompt.")
+        # Usar SIEMPRE el .docx guardado en sesión
+        prompt_docx_path = work.get('prompt_docx_path')
+        if not prompt_docx_path or not os.path.isfile(prompt_docx_path):
+            messages.error(request, "No se encontró el prompt asociado a la vista elegida.")
             return redirect('products:upload_photo')
+        prompt_text = read_docx_text(Path(prompt_docx_path))
+        prompt_name = os.path.basename(prompt_docx_path)
+        logger.info(f"[result_view] Usando prompt fijo: {prompt_name} (vista {chosen_view_num})")
 
-        prompt_text = load_prompt_for_view(Path(line_src_dir), chosen_view_num)
-
-        # Llamada a OpenAI con la imagen subida y el prompt (.docx)
-        result1_bytes = _call_openai_edit(
-            client_abs=client_abs,
-            prompt_text=prompt_text,
-        )
+        # Llamada a OpenAI con la imagen subida y el prompt
+        result1_bytes = _call_openai_edit(client_abs=client_abs, prompt_text=prompt_text)
 
         # Guardar imagen base
         result1_rel = f'uploads/output/Resultado_1_{uuid4()}.jpg'
@@ -350,14 +329,14 @@ def result_view(request):
         with open(result1_abs, 'wb') as f:
             f.write(result1_bytes)
 
-        # Postpro
+        # Post-procesado
         post_rel = f'uploads/output/Resultado_1_post_{uuid4()}.jpg'
         post_abs = os.path.join(settings.MEDIA_ROOT, post_rel)
         enhance_mockup(result1_abs, post_abs)
         result1_url = settings.MEDIA_URL + post_rel
         final_url = result1_url
 
-        # Limpiar sesión
+        # Limpiar sesión temporal
         request.session.pop('work', None)
         request.session.pop('logo', None)
 
@@ -365,6 +344,8 @@ def result_view(request):
             'result1_url': result1_url,
             'final_url': final_url,
             'used_logo': False,
+            'used_view': chosen_view_num,
+            'prompt_name': prompt_name,
         })
     except Exception:
         logger.exception("Fallo inesperado en result_view")
