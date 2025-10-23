@@ -191,12 +191,22 @@ def upload_photo(request):
                 client_url = settings.MEDIA_URL + input_rel
 
                 # Vista elegida
-                chosen_view_num = int(choose_view_form.cleaned_data['view_number'])
-                chosen_abs = None
-                for num, path in views_found:
-                    if num == chosen_view_num:
-                        chosen_abs = path
-                        break
+                # Vista elegida (forzamos a leer primero lo que llega por POST)
+	raw_view = request.POST.get('view_number', '').strip()
+	try:
+    	chosen_view_num = int(raw_view) if raw_view else int(choose_view_form.cleaned_data['view_number'])
+	except Exception:
+   	 chosen_view_num = int(choose_view_form.cleaned_data['view_number'])
+
+	# Log opcional para depurar (lo verás en Render > Logs)
+	logger.info(f"[upload_photo] Vista seleccionada: {chosen_view_num}")
+
+	chosen_abs = None
+	for num, path in views_found:
+   	 if num == chosen_view_num:
+        	chosen_abs = path
+        	break
+
                 if not chosen_abs:
                     messages.error(request, 'No se encontró la vista seleccionada.')
                     return redirect('products:upload_photo')
