@@ -1,4 +1,5 @@
-# products/views.py
+
+v# products/views.py
 import os
 import io
 import logging
@@ -116,23 +117,34 @@ def enhance_mockup(abs_path_in, abs_path_out):
     - Contraste y nitidez suaves
     - Gamma equivalente a Niveles 1.30 en PS (aclara medios tonos)
     """
-    # Cargar imagen
     img = Image.open(abs_path_in).convert('RGB')
-
-    # Claridad local (micro-contraste)
     img = img.filter(ImageFilter.UnsharpMask(radius=2, percent=60, threshold=3))
-
-    # Ajustes globales suaves
     img = ImageEnhance.Contrast(img).enhance(1.06)
     img = ImageEnhance.Sharpness(img).enhance(1.08)
-
-    # Corrección gamma: Photoshop 1.30 aclara -> usar 1/1.30 ≈ 0.77
     gamma = 1 / 1.30
     lut = [min(255, int((i / 255.0) ** gamma * 255 + 0.5)) for i in range(256)]
-    img = img.point(lut * 3)  # aplicar a R,G,B
-
-    # Guardar
+    img = img.point(lut * 3)
     img.save(abs_path_out, quality=95)
+
+def _extract_view_number_from_post(request, allowed_numbers):
+    """Intenta obtener el número de vista desde el POST.
+    Busca en claves habituales y, si no, escanea todos los valores.
+    """
+    try_keys = ["view_number", "view", "vista", "selected_view", "option", "choice"]
+    for k in try_keys:
+        v = request.POST.get(k)
+        if v and str(v).strip().isdigit():
+            n = int(str(v).strip())
+            if n in allowed_numbers:
+                return n
+    # Escaneo de todos los valores del POST (por si el name es otro)
+    for v in request.POST.values():
+        s = str(v).strip()
+        if s.isdigit():
+            n = int(s)
+            if n in allowed_numbers:
+                return n
+    return None
 
 # ===========================
 #          VISTAS
@@ -189,14 +201,14 @@ def upload_photo(request):
                         out.write(chunk)
                 client_url = settings.MEDIA_URL + input_rel
 
-                # Vista elegida (leer primero lo que llega por POST)
-                raw_view = request.POST.get('view_number', '').strip()
-                try:
-                    chosen_view_num = int(raw_view) if raw_view else int(choose_view_form.cleaned_data['view_number'])
-                except Exception:
+                # Vista elegida: leer del POST con extractor robusto
+                chosen_view_num = _extract_view_number_from_post(request, set(view_numbers))
+                if chosen_view_num is None:
+                    # Fallback al valor del form (por si el template sí usa view_number)
                     chosen_view_num = int(choose_view_form.cleaned_data['view_number'])
 
-                logger.info(f"[upload_photo] Vista seleccionada: {chosen_view_num}")
+                logger.info(f"[upload_photo] POST keys: {list(request.POST.keys())}")
+                logger.info(f"[upload_photo] Vista seleccionada (final): {chosen_view_num}")
 
                 chosen_abs = None
                 for num, path in views_found:
@@ -334,4 +346,3 @@ def result_view(request):
         logger.exception("Fallo inesperado en result_view")
         messages.error(request, "Ha ocurrido un error generando el resultado.")
         return redirect('products:upload_photo')
-
