@@ -95,19 +95,67 @@ def paste_logo_on_area(base_img: Image.Image, logo_img: Image.Image, rect):
 
 def load_prompt_for_view(source_folder: Path, chosen_view_num: int) -> str:
     """
-    Busca un archivo .docx en la carpeta de la VISTA ORIGINAL (no en media/),
-    por ejemplo Prompt_camiseta_1.docx, y devuelve su texto.
+    Devuelve el texto del .docx que corresponde EXACTAMENTE a la vista elegida.
+    Estricto y robusto ante:
+    - espacios en el nombre (p.ej. 'Prompt camiseta _2.docx')
+    - mayúsculas/minúsculas (.DOCX vs .docx)
+    - nombres con otros guiones o palabras
+    Si no encuentra, NO coge el primero al azar: lanza un error claro.
     """
     folder = Path(source_folder)
     if not folder.is_dir():
         folder = folder.parent
-    candidates = list(folder.glob(f"*_{chosen_view_num}.docx")) or list(folder.glob("*.docx"))
-    if not candidates:
-        raise FileNotFoundError(f"No se encontró prompt .docx en {folder}")
-    doc = Document(candidates[0])
+
+    want = str(chosen_view_num)
+
+    # Reunimos todos los .docx (cualquier casing)
+    all_docx = [p for p in folder.iterdir() if p.is_file() and p.suffix.lower() == ".docx"]
+
+    # Normalizador de nombre para comparación robusta
+    def norm_name(p: Path) -> str:
+        name = p.stem  # sin extensión
+        name = unicodedata.normalize("NFKD", name).lower()
+        name = name.replace(" ", "")  # quitamos espacios intermedios
+        return name
+
+    # 1) Coincidencia exacta por sufijo: ..._<num>
+    exact = [p for p in all_docx if norm_name(p).endswith(f"_{want}")]
+    if exact:
+        chosen = exact[0]
+    else:
+        # 2) Coincidencia que contenga _<num> en cualquier parte
+        contains = [p for p in all_docx if f"_{want}" in norm_name(p)]
+        if contains:
+            chosen = contains[0]
+        else:
+            # 3) Coincidencia por dígitos finales en el nombre (…1, …2, etc.)
+            cand = None
+            for p in all_docx:
+                n = norm_name(p)
+                # extrae sufijo numérico si lo hay
+                tail = ""
+                for ch in reversed(n):
+                    if ch.isdigit():
+                        tail = ch + tail
+                    else:
+                        break
+                if tail and tail == want:
+                    cand = p
+                    break
+            if cand:
+                chosen = cand
+            else:
+                raise FileNotFoundError(
+                    f"No encontré un .docx para la vista {chosen_view_num} en {folder}. "
+                    f"Archivos .docx presentes: {[p.name for p in all_docx]}"
+                )
+
+    # Leemos el .docx elegido
+    doc = Document(chosen)
     text = "\n".join(p.text for p in doc.paragraphs).strip()
-    logger.info(f"Usando prompt: {candidates[0].name} en {folder}")
+    logger.info(f"Prompt seleccionado para vista {chosen_view_num}: {chosen.name} en {folder}")
     return text
+
 
 def enhance_mockup(abs_path_in, abs_path_out):
     """
