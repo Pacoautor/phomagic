@@ -5,7 +5,6 @@ import logging
 import unicodedata
 from uuid import uuid4
 from pathlib import Path
-
 from django.conf import settings
 from django.shortcuts import render, redirect
 from django.contrib import messages
@@ -126,26 +125,6 @@ def enhance_mockup(abs_path_in, abs_path_out):
     img = img.point(lut * 3)
     img.save(abs_path_out, quality=95)
 
-def _extract_view_number_from_post(request, allowed_numbers):
-    """Intenta obtener el número de vista desde el POST.
-    Busca en claves habituales y, si no, escanea todos los valores.
-    """
-    try_keys = ["view_number", "view", "vista", "selected_view", "option", "choice"]
-    for k in try_keys:
-        v = request.POST.get(k)
-        if v and str(v).strip().isdigit():
-            n = int(str(v).strip())
-            if n in allowed_numbers:
-                return n
-    # Escaneo de todos los valores del POST (por si el name es otro)
-    for v in request.POST.values():
-        s = str(v).strip()
-        if s.isdigit():
-            n = int(s)
-            if n in allowed_numbers:
-                return n
-    return None
-
 # ===========================
 #          VISTAS
 # ===========================
@@ -175,6 +154,7 @@ def upload_photo(request):
 
         if request.method == 'POST':
             upload_form = UploadPhotoForm(request.POST, request.FILES)
+            # elige por POST; el form ya no decide la vista
             choose_view_form = ChooseViewForm(request.POST, view_numbers=view_numbers)
             logo_form = LogoForm(request.POST, request.FILES)
 
@@ -188,7 +168,7 @@ def upload_photo(request):
                     'thumbnails': [],
                 })
 
-            if upload_form.is_valid() and choose_view_form.is_valid():
+            if upload_form.is_valid():
                 ensure_dirs()
                 # Guardar foto del cliente
                 client_file = upload_form.cleaned_data['client_photo']
@@ -201,26 +181,23 @@ def upload_photo(request):
                         out.write(chunk)
                 client_url = settings.MEDIA_URL + input_rel
 
-                # Vista elegida: leer del POST con extractor robusto
-                chosen_view_num = _extract_view_number_from_post(request, set(view_numbers))
-                if chosen_view_num is None:
-                    # Fallback al valor del form (por si el template sí usa view_number)
-                    chosen_view_num = int(choose_view_form.cleaned_data['view_number'])
-
-                logger.info(f"[upload_photo] POST keys: {list(request.POST.keys())}")
-                logger.info(f"[upload_photo] Vista seleccionada (final): {chosen_view_num}")
+                # Vista elegida: TOMARLA SOLO DEL POST
+                raw_view = (request.POST.get('view_number') or "").strip()
+                if not (raw_view.isdigit() and int(raw_view) in view_numbers):
+                    messages.error(request, "Selecciona una vista válida.")
+                    return redirect('products:upload_photo')
+                chosen_view_num = int(raw_view)
 
                 chosen_abs = None
                 for num, path in views_found:
                     if num == chosen_view_num:
                         chosen_abs = path
                         break
-
                 if not chosen_abs:
                     messages.error(request, 'No se encontró la vista seleccionada.')
                     return redirect('products:upload_photo')
 
-                # Copia a media (para miniaturas) y guarda carpeta ORIGINAL para el .docx
+                # Copia a media y guarda ruta ORIGINAL para leer el .docx
                 line_url, line_abs = copy_to_media_and_get_url(chosen_abs)
                 if not line_abs:
                     messages.error(request, "No se pudo preparar la vista seleccionada.")
@@ -232,7 +209,7 @@ def upload_photo(request):
                     'line_abs': line_abs,
                     'line_url': line_url,
                     'chosen_view_num': chosen_view_num,
-                    'line_src_dir': str(Path(chosen_abs).parent),  # carpeta original (para .docx)
+                    'line_src_dir': str(Path(chosen_abs).parent),
                 }
 
                 return redirect('products:result')
@@ -242,7 +219,7 @@ def upload_photo(request):
             choose_view_form = ChooseViewForm(view_numbers=view_numbers)
             logo_form = LogoForm()
 
-        # Crear miniaturas si hay vistas
+        # Miniaturas
         thumbs = []
         for num, abs_path in views_found:
             url, _ = copy_to_media_and_get_url(abs_path)
@@ -273,8 +250,8 @@ def _call_openai_edit(client_abs, prompt_text):
     with open(client_abs, "rb") as f:
         resp = client.images.edit(
             model="gpt-image-1",
-            image=[f],               # imagen de entrada
-            prompt=prompt_text,      # instrucciones
+            image=[f],
+            prompt=prompt_text,
             size="1024x1024",
         )
     img_b64 = resp.data[0].b64_json
@@ -293,8 +270,6 @@ def _call_openai_logo(result1_abs, logo_abs, rect_pixels):
 
 def result_view(request):
     try:
-	print("📸 POST recibido:", request.POST)
-
         selection = request.session.get('selection')
         work = request.session.get('work')
         if not selection or not work:
@@ -327,13 +302,12 @@ def result_view(request):
         with open(result1_abs, 'wb') as f:
             f.write(result1_bytes)
 
-        # --- Postpro: relieve/claridad + gamma ---
+        # Postpro
         post_rel = f'uploads/output/Resultado_1_post_{uuid4()}.jpg'
         post_abs = os.path.join(settings.MEDIA_ROOT, post_rel)
         enhance_mockup(result1_abs, post_abs)
         result1_url = settings.MEDIA_URL + post_rel
         final_url = result1_url
-        # ----------------------------------------
 
         # Limpiar sesión
         request.session.pop('work', None)
