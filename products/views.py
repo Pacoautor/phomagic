@@ -1,4 +1,3 @@
-
 # products/views.py
 import os
 import io
@@ -17,20 +16,20 @@ from openai import OpenAI
 from docx import Document
 
 from .forms import SelectCategoryForm, UploadPhotoForm, ChooseViewForm, LogoForm
-from .quality_check import check_image_quality  # ✅ validador de calidad
+from .quality_check import check_image_quality  # Control de calidad
 
 logger = logging.getLogger(__name__)
 client = OpenAI()
 
-# Detecta carpeta de líneas
+# === Localiza carpeta de “líneas” (acepta 'lineas' o 'Lineas') ===
 _APP_DIR = Path(__file__).resolve().parent
 _LINEAS_CANDIDATES = [_APP_DIR / "lineas", _APP_DIR / "Lineas"]
 LINE_ROOT = next((p for p in _LINEAS_CANDIDATES if p.is_dir()), _LINEAS_CANDIDATES[0])
 
+
 # ===========================
 #   UTILIDADES
 # ===========================
-
 def ensure_dirs():
     os.makedirs(os.path.join(settings.MEDIA_ROOT, 'uploads', 'input'), exist_ok=True)
     os.makedirs(os.path.join(settings.MEDIA_ROOT, 'uploads', 'output'), exist_ok=True)
@@ -42,6 +41,7 @@ def _normalize(s: str) -> str:
     return s.strip()
 
 def list_line_thumbnails(category: str, subcategory: str):
+    """Devuelve [(num_vista, ruta_absoluta_imagen_lineas), ...]"""
     try:
         normalized_target = _normalize(f"{category}_{subcategory}")
         if not Path(LINE_ROOT).exists():
@@ -71,6 +71,7 @@ def list_line_thumbnails(category: str, subcategory: str):
         return []
 
 def copy_to_media_and_get_url(abs_path):
+    """Copia un archivo al MEDIA_ROOT para poder servirlo, y devuelve (url, ruta_abs_en_media)."""
     ensure_dirs()
     try:
         with open(abs_path, 'rb') as f:
@@ -87,6 +88,7 @@ def copy_to_media_and_get_url(abs_path):
     return settings.MEDIA_URL + fname, media_abs
 
 def find_docx_for_view(source_folder: Path, chosen_view_num: int) -> Path:
+    """Selecciona el DOCX de la vista (robusto con espacios y mayúsculas)."""
     folder = Path(source_folder)
     if not folder.is_dir():
         folder = folder.parent
@@ -104,7 +106,7 @@ def find_docx_for_view(source_folder: Path, chosen_view_num: int) -> Path:
     contains = [p for p in all_docx if f"_{want}" in norm_name(p)]
     if contains:
         return contains[0]
-    # sufijo numérico al final
+    # sufijo numérico final
     for p in all_docx:
         n = norm_name(p)
         tail = ""
@@ -134,7 +136,7 @@ def paste_logo_on_area(base_img: Image.Image, logo_img: Image.Image, rect):
     return base_rgba.convert('RGB')
 
 def enhance_mockup(abs_path_in, abs_path_out):
-    """Postpro con claridad + gamma PS 1.30 (aclara medios tonos)."""
+    """Postpro con claridad + gamma equivalente a Photoshop 1.30."""
     img = Image.open(abs_path_in).convert('RGB')
     img = img.filter(ImageFilter.UnsharpMask(radius=2, percent=60, threshold=3))
     img = ImageEnhance.Contrast(img).enhance(1.06)
@@ -144,22 +146,25 @@ def enhance_mockup(abs_path_in, abs_path_out):
     img = img.point(lut * 3)
     img.save(abs_path_out, quality=95)
 
+
 # ===========================
 #          VISTAS
 # ===========================
-
 def select_category(request):
-    """⬅️ Esta vista faltaba y causó el error en Render."""
+    """Primer paso: selecciona categoría/subcategoría."""
     if request.method == 'POST':
         form = SelectCategoryForm(request.POST)
         if form.is_valid():
             request.session['selection'] = form.cleaned_data
+            request.session.modified = True
+            request.session.save()  # fuerza guardado
             return redirect('products:upload_photo')
     else:
         form = SelectCategoryForm()
     return render(request, 'products/select_category.html', {'form': form})
 
 def upload_photo(request):
+    """Segundo paso: subir foto + elegir vista; guarda sesión y pasa a 'processing'."""
     try:
         selection = request.session.get('selection')
         if not selection:
@@ -200,7 +205,7 @@ def upload_photo(request):
                         out.write(chunk)
                 client_url = settings.MEDIA_URL + input_rel
 
-                # 2) Leer vista del POST (obligatoria)
+                # 2) Vista elegida (obligatoria)
                 raw_view = (request.POST.get('view_number') or "").strip()
                 if not (raw_view.isdigit() and int(raw_view) in view_numbers):
                     messages.error(request, "Selecciona una vista válida.")
@@ -215,13 +220,13 @@ def upload_photo(request):
                     return redirect('products:upload_photo')
                 prompt_docx = find_docx_for_view(Path(chosen_abs).parent, chosen_view_num)
 
-                # 4) Copiar miniatura a media (opcional)
+                # 4) Copia de la miniatura a media (opcional)
                 line_url, line_abs = copy_to_media_and_get_url(chosen_abs)
                 if not line_abs:
                     messages.error(request, "No se pudo preparar la vista seleccionada.")
                     return redirect('products:upload_photo')
 
-                # 5) Guardar en sesión y pasar a pantalla de “Procesando…”
+                # 5) Guardar en sesión y pasar a “Procesando…”
                 request.session['work'] = {
                     'client_input_rel': input_rel,
                     'client_url': client_url,
@@ -230,8 +235,9 @@ def upload_photo(request):
                     'chosen_view_num': chosen_view_num,
                     'prompt_docx_path': str(prompt_docx),
                 }
+                request.session.modified = True
+                request.session.save()  # fuerza guardado antes del redirect
 
-                # 👉 Ahora vamos primero a la pantalla con el GIF
                 return redirect('products:processing')
 
         else:
@@ -259,8 +265,11 @@ def upload_photo(request):
         messages.error(request, "Ha ocurrido un error al cargar la página. Inténtalo de nuevo.")
         return redirect('products:select_category')
 
-# === Pantalla intermedia: “Imagen OK” + GIF y salto a /result ===
 def processing_view(request):
+    """
+    Tercer paso: pantalla de 'Imagen OK' con GIF (valida calidad aquí)
+    y meta-refresh automático a /result/ para generar la imagen.
+    """
     work = request.session.get('work')
     if not work:
         messages.error(request, "Vuelve a iniciar la selección.")
@@ -274,16 +283,13 @@ def processing_view(request):
         messages.error(request, msg)
         return redirect('products:upload_photo')
 
-    # Si pasa: mostramos “Imagen OK” + GIF y un meta-refresh a /result/
+    # Si pasa, mostramos 'Imagen OK' + GIF
     return render(request, 'products/processing.html', {
         'gif_url': settings.STATIC_URL + 'products/circle-9360_512.gif',
-  # o sirve el path absoluto si lo prefieres
-        # Si no usas staticfiles para el gif, usa MEDIA_URL o una ruta absoluta:
-        # 'gif_url': '/media/circle-9360_512.gif'
     })
 
-# === Llamada a OpenAI (edición) ===
 def _call_openai_edit(client_abs, prompt_text):
+    """Llamada a OpenAI: edición con imagen + prompt"""
     with open(client_abs, "rb") as f:
         resp = client.images.edit(
             model="gpt-image-1",
@@ -296,8 +302,8 @@ def _call_openai_edit(client_abs, prompt_text):
         raise ValueError("OpenAI no devolvió imagen en b64_json.")
     return base64.b64decode(img_b64)
 
-# === Vista que genera el resultado y lo muestra ===
 def result_view(request):
+    """Cuarto paso: genera imagen con OpenAI y muestra resultado."""
     try:
         work = request.session.get('work')
         if not work:
@@ -317,19 +323,19 @@ def result_view(request):
         # Llamada a OpenAI
         result1_bytes = _call_openai_edit(client_abs=client_abs, prompt_text=prompt_text)
 
-        # Guardar
+        # Guardar resultado base
         result1_rel = f'uploads/output/Resultado_1_{uuid4()}.jpg'
         result1_abs = os.path.join(settings.MEDIA_ROOT, result1_rel)
         with open(result1_abs, 'wb') as f:
             f.write(result1_bytes)
 
-        # Postpro
+        # Postpro (claridad + gamma)
         post_rel = f'uploads/output/Resultado_1_post_{uuid4()}.jpg'
         post_abs = os.path.join(settings.MEDIA_ROOT, post_rel)
         enhance_mockup(result1_abs, post_abs)
         result1_url = settings.MEDIA_URL + post_rel
 
-        # Limpiar (opcional)
+        # Limpiar sesión temporal
         request.session.pop('work', None)
         request.session.pop('logo', None)
 
@@ -343,3 +349,4 @@ def result_view(request):
         logger.exception("Fallo inesperado en result_view")
         messages.error(request, "Ha ocurrido un error generando el resultado.")
         return redirect('products:upload_photo')
+

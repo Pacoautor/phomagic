@@ -1,0 +1,14 @@
+{% extends "products/base.html" %}
+{% block title %}Procesando…{% endblock %}
+
+{% block content %}
+<h3>Imagen OK ✅</h3>
+<p>Estamos generando tu resultado. No cierres la página.</p>
+
+<div style="margin:20px 0">
+  <img src="{{ gif_url }}" alt="Procesando…" style="width:128px; height:128px;">
+</div>
+
+<!-- Espera 1 segundo y continúa a /result/ -->
+<meta http-equiv="refresh" content="1; url={% url 'products:result' %}">
+{% endblock %}
