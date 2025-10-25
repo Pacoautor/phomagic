@@ -9,6 +9,6 @@
   <img src="{{ gif_url }}" alt="Procesando…" style="width:128px; height:128px;">
 </div>
 
-<!-- Espera 1 segundo y continúa a /result/ -->
-<meta http-equiv="refresh" content="1; url={% url 'products:result' %}">
+<!-- Espera 1 segundo y continúa a /result/?job=TOKEN -->
+<meta http-equiv="refresh" content="1; url={{ result_url }}">
 {% endblock %}

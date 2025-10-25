@@ -1,6 +1,7 @@
 # products/views.py
 import os
 import io
+import json
 import base64
 import unicodedata
 import logging
@@ -10,6 +11,7 @@ from pathlib import Path
 from django.conf import settings
 from django.shortcuts import render, redirect
 from django.contrib import messages
+from django.urls import reverse
 
 from PIL import Image, ImageOps, ImageFilter, ImageEnhance
 from openai import OpenAI
@@ -33,6 +35,7 @@ LINE_ROOT = next((p for p in _LINEAS_CANDIDATES if p.is_dir()), _LINEAS_CANDIDAT
 def ensure_dirs():
     os.makedirs(os.path.join(settings.MEDIA_ROOT, 'uploads', 'input'), exist_ok=True)
     os.makedirs(os.path.join(settings.MEDIA_ROOT, 'uploads', 'output'), exist_ok=True)
+    os.makedirs(os.path.join(settings.MEDIA_ROOT, 'uploads', 'tmp'), exist_ok=True)
 
 def _normalize(s: str) -> str:
     s = (s or "").lower()
@@ -226,8 +229,8 @@ def upload_photo(request):
                     messages.error(request, "No se pudo preparar la vista seleccionada.")
                     return redirect('products:upload_photo')
 
-                # 5) Guardar en sesión y pasar a “Procesando…”
-                request.session['work'] = {
+                # 5) Guardar en sesión…
+                work = {
                     'client_input_rel': input_rel,
                     'client_url': client_url,
                     'line_abs': line_abs,
@@ -235,9 +238,20 @@ def upload_photo(request):
                     'chosen_view_num': chosen_view_num,
                     'prompt_docx_path': str(prompt_docx),
                 }
+                request.session['work'] = work
                 request.session.modified = True
                 request.session.save()  # fuerza guardado antes del redirect
 
+                # …y además guardarlo en fichero temporal con token “job”
+                job_token = str(uuid4())
+                tmp_json = os.path.join(settings.MEDIA_ROOT, 'uploads', 'tmp', f'{job_token}.json')
+                with open(tmp_json, 'w', encoding='utf-8') as fh:
+                    json.dump(work, fh)
+                request.session['work_token'] = job_token
+                request.session.modified = True
+                request.session.save()
+
+                # Ir a la pantalla de “Procesando…”
                 return redirect('products:processing')
 
         else:
@@ -268,10 +282,11 @@ def upload_photo(request):
 def processing_view(request):
     """
     Tercer paso: pantalla de 'Imagen OK' con GIF (valida calidad aquí)
-    y meta-refresh automático a /result/ para generar la imagen.
+    y meta-refresh automático a /result/?job=TOKEN para generar la imagen.
     """
     work = request.session.get('work')
-    if not work:
+    token = request.session.get('work_token')
+    if not work or not token:
         messages.error(request, "Vuelve a iniciar la selección.")
         return redirect('products:select_category')
 
@@ -283,9 +298,12 @@ def processing_view(request):
         messages.error(request, msg)
         return redirect('products:upload_photo')
 
-    # Si pasa, mostramos 'Imagen OK' + GIF
+    # URL de destino con el job token (para no depender de la sesión)
+    result_url = reverse('products:result') + f'?job={token}'
+
     return render(request, 'products/processing.html', {
         'gif_url': settings.STATIC_URL + 'products/circle-9360_512.gif',
+        'result_url': result_url,
     })
 
 def _call_openai_edit(client_abs, prompt_text):
@@ -303,14 +321,31 @@ def _call_openai_edit(client_abs, prompt_text):
     return base64.b64decode(img_b64)
 
 def result_view(request):
-    """Cuarto paso: genera imagen con OpenAI y muestra resultado."""
+    """Cuarto paso: genera imagen con OpenAI y muestra resultado.
+       Si falta la sesión, intenta leer 'work' desde /media/uploads/tmp/<job>.json
+    """
     try:
+        ensure_dirs()
+
         work = request.session.get('work')
+
+        # Fallback: si no hay sesión, mirar ?job=TOKEN
+        if not work:
+            job_token = request.GET.get('job')
+            if job_token:
+                tmp_json = os.path.join(settings.MEDIA_ROOT, 'uploads', 'tmp', f'{job_token}.json')
+                if os.path.isfile(tmp_json):
+                    with open(tmp_json, 'r', encoding='utf-8') as fh:
+                        work = json.load(fh)
+                    # Opcional: borrar el archivo temporal para no acumular
+                    try:
+                        os.remove(tmp_json)
+                    except Exception:
+                        pass
+
         if not work:
             messages.error(request, "Vuelve a iniciar la selección.")
             return redirect('products:select_category')
-
-        ensure_dirs()
 
         client_abs = os.path.join(settings.MEDIA_ROOT, work['client_input_rel'])
         chosen_view_num = int(work['chosen_view_num'])
@@ -335,8 +370,9 @@ def result_view(request):
         enhance_mockup(result1_abs, post_abs)
         result1_url = settings.MEDIA_URL + post_rel
 
-        # Limpiar sesión temporal
+        # Limpiar sesión temporal (si existiera)
         request.session.pop('work', None)
+        request.session.pop('work_token', None)
         request.session.pop('logo', None)
 
         return render(request, 'products/result.html', {
@@ -349,4 +385,3 @@ def result_view(request):
         logger.exception("Fallo inesperado en result_view")
         messages.error(request, "Ha ocurrido un error generando el resultado.")
         return redirect('products:upload_photo')
-
