@@ -1,4 +1,3 @@
-# render.yaml
 services:
   - type: web
     name: phomagic-web
@@ -6,7 +5,8 @@ services:
     plan: starter
     region: frankfurt
     buildCommand: ./render-build.sh
-    startCommand: gunicorn photopro_app.wsgi:application --workers 2 --threads 2 --timeout 180
+    # Run migrations at START (disk /data is mounted here), then start gunicorn
+    startCommand: python manage.py migrate --noinput && gunicorn photopro_app.wsgi:application --workers 2 --threads 2 --timeout 180
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.6
@@ -30,10 +30,3 @@ services:
       name: media-disk
       mountPath: /data
       sizeGB: 5
-
-# (opcional) BBDD gestionada por Render si algún día la añades
-# databases:
-#   - name: phomagic-db
-#     plan: starter
-#     region: frankfurt
-
