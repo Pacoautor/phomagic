@@ -1,32 +1,31 @@
 # photopro_app/settings.py
-import os
 from pathlib import Path
-from urllib.parse import urlparse
+import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv("SECRET_KEY", "dev-insecure-key")
-DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+# --- Seguridad / entorno ---
+SECRET_KEY = os.environ.get("SECRET_KEY", "dev-insecure-key")
+DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
 
-# Añade tus dominios aquí
-ALLOWED_HOSTS = [
-    "phomagic.com",
-    "www.phomagic.com",
-    ".onrender.com",
-    "localhost",
-    "127.0.0.1",
-]
+# Dominios (Render público)
+ALLOWED_HOSTS = ["phomagic-web.onrender.com"] if not DEBUG else ["*"]
+CSRF_TRUSTED_ORIGINS = ["https://phomagic-web.onrender.com"]
 
+# Cookies seguras y cabeceras proxy
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_SSL_REDIRECT = False
+
+# --- Apps ---
 INSTALLED_APPS = [
-    "django.contrib.admin",
-    "django.contrib.auth",
-    "django.contrib.contenttypes",
-    "django.contrib.sessions",
-    "django.contrib.messages",
-    "django.contrib.staticfiles",
+    "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
+    "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
     "products",
 ]
 
+# --- Middleware (WhiteNoise para estáticos) ---
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -39,65 +38,63 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = "photopro_app.urls"
-
-TEMPLATES = [
-    {
-        "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates"],
-        "APP_DIRS": True,
-        "OPTIONS": {
-            "context_processors": [
-                "django.template.context_processors.debug",
-                "django.template.context_processors.request",
-                "django.contrib.auth.context_processors.auth",
-                "django.contrib.messages.context_processors.messages",
-            ],
-        },
-    },
-]
-
 WSGI_APPLICATION = "photopro_app.wsgi.application"
 
-# Base de datos desde DATABASE_URL (Render)
-DATABASE_URL = os.getenv("DATABASE_URL")
-if DATABASE_URL:
-    r = urlparse(DATABASE_URL)
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": r.path[1:],
-            "USER": r.username,
-            "PASSWORD": r.password,
-            "HOST": r.hostname,
-            "PORT": r.port or "5432",
-        }
-    }
-else:
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
-        }
-    }
+# --- Templates ---
+TEMPLATES = [{
+    "BACKEND": "django.template.backends.django.DjangoTemplates",
+    "DIRS": [BASE_DIR / "templates"] if (BASE_DIR / "templates").exists() else [],
+    "APP_DIRS": True,
+    "OPTIONS": {"context_processors": [
+        "django.template.context_processors.debug",
+        "django.template.context_processors.request",
+        "django.contrib.auth.context_processors.auth",
+        "django.contrib.messages.context_processors.messages",
+    ]},
+}]
 
+# --- Base de datos (SQLite persistente en /data en prod) ---
+DEFAULT_DB_PATH = "/data/db.sqlite3" if not DEBUG else str(BASE_DIR / "db.sqlite3")
+DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": DEFAULT_DB_PATH}}
+
+# --- Estáticos y Media ---
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+local_static = BASE_DIR / "static"
+STATICFILES_DIRS = [local_static] if local_static.exists() else []
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+MEDIA_URL = "/media/"
+MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", "/data/media"))
+for sub in ("uploads/input", "uploads/output", "uploads/tmp"):
+    try:
+        (MEDIA_ROOT / sub).mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+
+# --- I18N ---
 LANGUAGE_CODE = "es-es"
 TIME_ZONE = "Europe/Madrid"
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = os.getenv("STATIC_URL", "/static/")
-STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+# --- Password validators ---
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
 
-MEDIA_URL = os.getenv("MEDIA_URL", "/media/")
-MEDIA_ROOT = os.getenv("DISK_MEDIA_ROOT", str(BASE_DIR / "media"))
+# --- Logging a consola (Render Logs) ---
+LOGGING = {
+    "version": 1, "disable_existing_loggers": False,
+    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "root": {"handlers": ["console"], "level": "INFO"},
+    "loggers": {"django": {"handlers": ["console"], "level": "INFO", "propagate": False}},
+}
+
+# --- Integraciones ---
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-
-SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-
-CSRF_TRUSTED_ORIGINS = [
-    "https://phomagic.com",
-    "https://www.phomagic.com",
-]
-# Render añade su origen *.onrender.com automáticamente según entorno

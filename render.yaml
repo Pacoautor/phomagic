@@ -1,0 +1,39 @@
+# render.yaml
+services:
+  - type: web
+    name: phomagic-web
+    env: python
+    plan: starter
+    region: frankfurt
+    buildCommand: ./render-build.sh
+    startCommand: gunicorn photopro_app.wsgi:application --workers 2 --threads 2 --timeout 180
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.6
+      - key: DJANGO_SETTINGS_MODULE
+        value: photopro_app.settings
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "false"
+      - key: ALLOWED_HOSTS
+        value: phomagic-web.onrender.com
+      - key: CSRF_TRUSTED_ORIGINS
+        value: https://phomagic-web.onrender.com
+      - key: STATIC_URL
+        value: /static/
+      - key: MEDIA_URL
+        value: /media/
+      - key: MEDIA_ROOT
+        value: /data/media
+    disk:
+      name: media-disk
+      mountPath: /data
+      sizeGB: 5
+
+# (opcional) BBDD gestionada por Render si algún día la añades
+# databases:
+#   - name: phomagic-db
+#     plan: starter
+#     region: frankfurt
+

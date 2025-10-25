@@ -1,12 +1,10 @@
-# Dentro de la carpeta del proyecto
-py -m venv .venv
-.venv\Scripts\activate
+#!/usr/bin/env bash
+set -o errexit
 
+# Upgrade pip and install dependencies
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 
-# (Opcional) crea un .env para local
-# SECRET_KEY de prueba + DEBUG=True y SQLite
-# Luego:
-python manage.py migrate
+# Django collectstatic and migrations (no server start here)
 python manage.py collectstatic --noinput
-python manage.py runserver
+python manage.py migrate --noinput
