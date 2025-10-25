@@ -9,6 +9,12 @@
   <img src="{{ gif_url }}" alt="Procesando…" style="width:128px; height:128px;">
 </div>
 
-<!-- Espera 1 segundo y continúa a /result/?job=TOKEN -->
+<!-- Auto-continue con token -->
 <meta http-equiv="refresh" content="1; url={{ result_url }}">
+
+<!-- Botón manual por si el meta-refresh es bloqueado -->
+<p>
+  Si no avanzas automáticamente, pulsa aquí:
+  <a class="button" href="{{ result_url }}">Continuar</a>
+</p>
 {% endblock %}

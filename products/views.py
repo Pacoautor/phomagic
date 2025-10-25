@@ -287,7 +287,7 @@ def processing_view(request):
     work = request.session.get('work')
     token = request.session.get('work_token')
     if not work or not token:
-        messages.error(request, "Vuelve a iniciar la selección.")
+        messages.error(request, "Falta información de trabajo (work/work_token). Vuelve a iniciar la selección.")
         return redirect('products:select_category')
 
     # Validación de calidad ANTES de lanzar la generación
@@ -322,37 +322,52 @@ def _call_openai_edit(client_abs, prompt_text):
 
 def result_view(request):
     """Cuarto paso: genera imagen con OpenAI y muestra resultado.
-       Si falta la sesión, intenta leer 'work' desde /media/uploads/tmp/<job>.json
+       Si falta la sesión, intenta leer 'work' desde /media/uploads/tmp/<job>.json.
+       Si falla, muestra un mensaje DIAGNÓSTICO en lugar de mandarte al inicio sin más.
     """
     try:
         ensure_dirs()
 
         work = request.session.get('work')
 
-        # Fallback: si no hay sesión, mirar ?job=TOKEN
+        # Fallback: si no hay sesión, mirar ?job=TOKEN y cargar JSON
         if not work:
             job_token = request.GET.get('job')
-            if job_token:
-                tmp_json = os.path.join(settings.MEDIA_ROOT, 'uploads', 'tmp', f'{job_token}.json')
-                if os.path.isfile(tmp_json):
-                    with open(tmp_json, 'r', encoding='utf-8') as fh:
-                        work = json.load(fh)
-                    # Opcional: borrar el archivo temporal para no acumular
-                    try:
-                        os.remove(tmp_json)
-                    except Exception:
-                        pass
+            if not job_token:
+                messages.error(request, "Falta 'job' en la URL y no hay sesión. No se puede continuar.")
+                return redirect('products:select_category')
 
-        if not work:
-            messages.error(request, "Vuelve a iniciar la selección.")
+            tmp_json = os.path.join(settings.MEDIA_ROOT, 'uploads', 'tmp', f'{job_token}.json')
+            if not os.path.isfile(tmp_json):
+                messages.error(request, f"No existe el archivo de trabajo para job={job_token}: {tmp_json}")
+                return redirect('products:select_category')
+
+            with open(tmp_json, 'r', encoding='utf-8') as fh:
+                work = json.load(fh)
+            # Limpieza opcional
+            try:
+                os.remove(tmp_json)
+            except Exception:
+                pass
+
+        # En este punto deberíamos tener 'work'
+        missing = [k for k in ['client_input_rel', 'chosen_view_num', 'prompt_docx_path'] if k not in work]
+        if missing:
+            messages.error(request, f"Faltan claves en work: {missing}. Vuelve a iniciar la selección.")
             return redirect('products:select_category')
 
         client_abs = os.path.join(settings.MEDIA_ROOT, work['client_input_rel'])
         chosen_view_num = int(work['chosen_view_num'])
         prompt_docx_path = work.get('prompt_docx_path')
-        if not prompt_docx_path or not os.path.isfile(prompt_docx_path):
-            messages.error(request, "No se encontró el prompt asociado a la vista elegida.")
+
+        if not os.path.isfile(client_abs):
+            messages.error(request, f"No existe la imagen del cliente en: {client_abs}")
             return redirect('products:upload_photo')
+
+        if not prompt_docx_path or not os.path.isfile(prompt_docx_path):
+            messages.error(request, f"No se encontró el prompt asociado a la vista. Ruta: {prompt_docx_path}")
+            return redirect('products:upload_photo')
+
         prompt_text = read_docx_text(Path(prompt_docx_path))
 
         # Llamada a OpenAI
