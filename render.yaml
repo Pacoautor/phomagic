@@ -5,8 +5,10 @@ services:
     plan: starter
     region: frankfurt
     buildCommand: ./render-build.sh
-    # Run migrations at START (disk /data is mounted here), then start gunicorn
-    startCommand: python manage.py migrate --noinput && gunicorn photopro_app.wsgi:application --workers 2 --threads 2 --timeout 180
+    startCommand: >
+      python manage.py migrate --noinput &&
+      python manage.py collectstatic --noinput &&
+      gunicorn photopro_app.wsgi:application --workers 2 --threads 2 --timeout 180
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.6
