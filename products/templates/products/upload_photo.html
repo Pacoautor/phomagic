@@ -1,41 +1,14 @@
-{% extends "products/base.html" %}
-{% block title %}Sube tu foto y elige la vista{% endblock %}
-
-{% block content %}
-<h2>2) Sube tu foto y elige la vista</h2>
-
-<form method="post" enctype="multipart/form-data" style="max-width:900px">
-  {% csrf_token %}
-
-  <!-- Foto del cliente -->
-  <div style="margin-bottom:18px">
-    <label for="id_client_photo"><strong>Tu foto</strong></label><br>
-    <input type="file" id="id_client_photo" name="client_photo" accept="image/*" required>
-  </div>
-
-  <!-- Radios de vista (¡IMPORTANTE: name=view_number y value=num!) -->
-  <div style="margin: 20px 0">
-    <p><strong>Vistas disponibles (elige una)</strong></p>
-    <div style="display:flex; gap:16px; flex-wrap:wrap">
-      {% for num, url in thumbnails %}
-        <label style="display:block; cursor:pointer">
-          <div style="border:1px solid #ddd; border-radius:8px; padding:6px; width:170px; text-align:center">
-            <img src="{{ url }}" alt="Vista {{ num }}" style="width:160px; height:auto; display:block; margin:0 auto 8px;">
-            <input
-              type="radio"
-              name="view_number"
-              value="{{ num }}"
-              {% if forloop.first %}checked{% endif %}
-            >
-            Vista {{ num }}
-          </div>
-        </label>
-      {% empty %}
-        <p style="color:#b00">No hay vistas disponibles para esta categoría/subcategoría.</p>
-      {% endfor %}
-    </div>
-  </div>
-
-  <button class="button" type="submit">Generar resultado</button>
-</form>
-{% endblock %}
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Subir foto</title></head>
+<body>
+  <h1>2) Subir imagen</h1>
+  <p>Selección: {{ selection }}</p>
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Procesar</button>
+  </form>
+  <p><a href="{% url 'products:select_category' %}">Volver</a></p>
+</body>
+</html>

@@ -1,23 +1,16 @@
-{% extends "products/base.html" %}
-{% block title %}Resultado{% endblock %}
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Resultado</title></head>
+<body>
+  <h1>4) Resultado</h1>
+  <p>Selección: {{ selection }}</p>
+  {% if output_path %}
+    <p>Imagen generada:</p>
+    <img src="{{ output_path|cut:MEDIA_ROOT }}" alt="resultado" />
+  {% else %}
+    <p>No hay imagen aún.</p>
+  {% endif %}
+  <p><a href="{% url 'products:select_category' %}">Empezar de nuevo</a></p>
+</body>
+</html>
 
-{% block content %}
-<h3>3) Resultado</h3>
-
-<figure>
-  <figcaption>Resultado 1 (base)</figcaption>
-  <img src="{{ result1_url }}" alt="Resultado 1" style="max-width:100%;border:1px solid #ddd;border-radius:6px;">
-</figure>
-
-{% if used_logo %}
-  <figure style="margin-top:20px">
-    <figcaption>Resultado final con logotipo</figcaption>
-    <img src="{{ final_url }}" alt="Resultado Final" style="max-width:100%;border:1px solid #ddd;border-radius:6px;">
-  </figure>
-{% endif %}
-
-<div style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap;">
-  <a class="button button-outline" href="{{ final_url }}" download>Descargar resultado</a>
-  <a class="button" href="{% url 'products:select_category' %}">Volver al menú principal</a>
-</div>
-{% endblock %}

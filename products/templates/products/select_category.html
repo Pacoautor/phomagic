@@ -1,16 +1,12 @@
-{% extends "products/base.html" %}
-{% block title %}Selecciona categoría{% endblock %}
-
-{% block content %}
-<h3>1) Selección inicial</h3>
-<p class="note">Elige categoría, subcategoría, tamaño, color de fondo y si quieres seguimiento de logotipo.</p>
-
-<form method="post">
-  {% csrf_token %}
-  {{ form.as_p }}
-
-  <button type="submit" class="button-primary">Continuar</button>
-</form>
-
-<p class="note">Las subcategorías se adaptan automáticamente a la categoría elegida.</p>
-{% endblock %}
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Selección inicial</title></head>
+<body>
+  <h1>1) Selección inicial</h1>
+  <form method="post" action="">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Continuar</button>
+  </form>
+</body>
+</html>
