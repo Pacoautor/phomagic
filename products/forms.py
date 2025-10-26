@@ -1,4 +1,3 @@
-# products/forms.py
 from django import forms
 
 CATEGORIAS = [
@@ -13,11 +12,7 @@ SUBCATEGORIAS = [
     ("Sudaderas", "Sudaderas"),
 ]
 
-TAMANOS = [
-    ("Pequeño", "Pequeño"),
-    ("Mediano", "Mediano"),
-    ("Grande", "Grande"),
-]
+TAMANOS = [("Pequeño", "Pequeño"), ("Mediano", "Mediano"), ("Grande", "Grande")]
 
 COLORES_FONDO = [
     ("Blanco (#FFFFFF)", "Blanco (#FFFFFF)"),
@@ -31,6 +26,5 @@ class SelectCategoryForm(forms.Form):
     tamano = forms.ChoiceField(choices=TAMANOS, label="Tamaño requerido")
     color_fondo = forms.ChoiceField(choices=COLORES_FONDO, label="Color de fondo")
     seguimiento_logo = forms.BooleanField(
-        label="Seguimiento de logotipo (Sí/No)",
-        required=False
+        label="Seguimiento de logotipo (Sí/No)", required=False
     )

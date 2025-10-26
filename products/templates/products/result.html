@@ -1,9 +1,8 @@
 <!doctype html><meta charset="utf-8">
 <h1>4) Resultado</h1>
-<p>Selección: {{ selection }}</p>
 {% if output_path %}
-  <p>Ruta de salida: {{ output_path }}</p>
+  <p>Imagen generada: {{ output_path }}</p>
 {% else %}
-  <p>No hay imagen generada.</p>
+  <p>No se encontró la imagen.</p>
 {% endif %}
-<p><a href="{% url 'products:select_category' %}">Empezar de nuevo</a></p>
+<a href="/">Volver al inicio</a>

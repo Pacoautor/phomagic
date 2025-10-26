@@ -1,5 +1,3 @@
-# render.yaml — configuración final para Render (phomagic-web)
-
 services:
   - type: web
     name: phomagic-web
@@ -26,16 +24,10 @@ services:
         generateValue: true
       - key: DEBUG
         value: "false"
-
-      # Dominios permitidos
       - key: ALLOWED_HOSTS
         value: phomagic-web.onrender.com,phomagic.com,www.phomagic.com
-
-      # Orígenes seguros para formularios (CSRF)
       - key: CSRF_TRUSTED_ORIGINS
         value: https://phomagic-web.onrender.com,https://phomagic.com,https://www.phomagic.com
-
-      # Configuración estáticos y media
       - key: STATIC_URL
         value: /static/
       - key: MEDIA_URL

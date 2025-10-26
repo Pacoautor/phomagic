@@ -1,9 +1,7 @@
 <!doctype html><meta charset="utf-8">
 <h1>2) Subir imagen</h1>
-<p>Selección: {{ selection }}</p>
 <form method="post" enctype="multipart/form-data">
   {% csrf_token %}
   {{ form.as_p }}
   <button type="submit">Procesar</button>
 </form>
-<p><a href="{% url 'products:select_category' %}">Volver</a></p>
