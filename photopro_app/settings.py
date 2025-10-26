@@ -75,13 +75,13 @@ STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
+# --- Media: usar carpeta local del proyecto (persistencia no garantizada entre deploys) ---
 MEDIA_URL = "/media/"
-MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", "/data/media"))
+MEDIA_ROOT = BASE_DIR / "media"   # <— en vez de /data/media
 
-# Solo crea las carpetas cuando el disco sea escribible
-if os.access(MEDIA_ROOT.parent, os.W_OK):
-    for sub in ("uploads/input", "uploads/output", "uploads/tmp"):
-        (MEDIA_ROOT / sub).mkdir(parents=True, exist_ok=True)
+# Crea subcarpetas locales (sí es escribible)
+for sub in ("uploads/input", "uploads/output", "uploads/tmp", "lineas"):
+    (MEDIA_ROOT / sub).mkdir(parents=True, exist_ok=True)
 
 
 LANGUAGE_CODE = "es-es"

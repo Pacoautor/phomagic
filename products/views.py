@@ -23,11 +23,8 @@ class UploadForm(forms.Form):
 # ---- Utilidad: crear carpetas solo si se puede escribir ----
 def ensure_dirs():
     base = Path(settings.MEDIA_ROOT)
-    if os.access(base, os.W_OK):
-        for sub in ("uploads/input", "uploads/output", "uploads/tmp"):
-            (base / sub).mkdir(parents=True, exist_ok=True)
-    else:
-        logger.warning(f"[ensure_dirs] MEDIA_ROOT no escribible: {base}")
+    for sub in ("uploads/input", "uploads/output", "uploads/tmp"):
+        (base / sub).mkdir(parents=True, exist_ok=True)
 
 
 # ---- Paso 1: selección inicial ----
