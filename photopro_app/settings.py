@@ -4,28 +4,36 @@ import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# --- Seguridad / entorno ---
+# --------------------------------------------------------------------------------------
+# Seguridad / entorno
+# --------------------------------------------------------------------------------------
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-insecure-key")
 DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
 
-# Dominios (Render público)
 ALLOWED_HOSTS = ["phomagic-web.onrender.com"] if not DEBUG else ["*"]
 CSRF_TRUSTED_ORIGINS = ["https://phomagic-web.onrender.com"]
 
-# Cookies seguras y cabeceras proxy
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_SSL_REDIRECT = False
 
-# --- Apps ---
+# --------------------------------------------------------------------------------------
+# Aplicaciones
+# --------------------------------------------------------------------------------------
 INSTALLED_APPS = [
-    "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
-    "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
     "products",
 ]
 
-# --- Middleware (WhiteNoise para estáticos) ---
+# --------------------------------------------------------------------------------------
+# Middleware
+# --------------------------------------------------------------------------------------
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -40,45 +48,47 @@ MIDDLEWARE = [
 ROOT_URLCONF = "photopro_app.urls"
 WSGI_APPLICATION = "photopro_app.wsgi.application"
 
-# --- Templates ---
-TEMPLATES = [{
-    "BACKEND": "django.template.backends.django.DjangoTemplates",
-    "DIRS": [BASE_DIR / "templates"] if (BASE_DIR / "templates").exists() else [],
-    "APP_DIRS": True,
-    "OPTIONS": {"context_processors": [
-        "django.template.context_processors.debug",
-        "django.template.context_processors.request",
-        "django.contrib.auth.context_processors.auth",
-        "django.contrib.messages.context_processors.messages",
-    ]},
-}]
-
-# --- Base de datos (SQLite persistente en /data en prod) ---
 # --------------------------------------------------------------------------------------
-# Base de datos
+# Templates
 # --------------------------------------------------------------------------------------
-import sys
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [BASE_DIR / "templates"] if (BASE_DIR / "templates").exists() else [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.debug",
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+            ],
+        },
+    },
+]
 
-if os.environ.get("RENDER", "") == "true" and "build" in sys.argv:
-    # Fase de build en Render: usar DB temporal en memoria
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": ":memory:",
-        }
-    }
+# --------------------------------------------------------------------------------------
+# Base de datos (elige ruta según disponibilidad de /data)
+# --------------------------------------------------------------------------------------
+def _use_data_disk() -> bool:
+    # /data solo existe y es escribible en runtime (no en build)
+    return os.path.isdir("/data") and os.access("/data", os.W_OK)
+
+if _use_data_disk():
+    db_path = "/data/db.sqlite3"
 else:
-    # En ejecución normal
-    DEFAULT_DB_PATH = "/data/db.sqlite3" if not DEBUG else str(BASE_DIR / "db.sqlite3")
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": DEFAULT_DB_PATH,
-        }
+    db_path = str(BASE_DIR / "db.sqlite3")
+
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": db_path,
     }
+}
 
-
-# --- Estáticos y Media ---
+# --------------------------------------------------------------------------------------
+# Archivos estáticos y media
+# --------------------------------------------------------------------------------------
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 local_static = BASE_DIR / "static"
@@ -93,13 +103,17 @@ for sub in ("uploads/input", "uploads/output", "uploads/tmp"):
     except Exception:
         pass
 
-# --- I18N ---
+# --------------------------------------------------------------------------------------
+# Internacionalización
+# --------------------------------------------------------------------------------------
 LANGUAGE_CODE = "es-es"
 TIME_ZONE = "Europe/Madrid"
 USE_I18N = True
 USE_TZ = True
 
-# --- Password validators ---
+# --------------------------------------------------------------------------------------
+# Validadores de contraseñas
+# --------------------------------------------------------------------------------------
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
@@ -107,15 +121,23 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-# --- Logging a consola (Render Logs) ---
+# --------------------------------------------------------------------------------------
+# Logging a consola (Render → Logs)
+# --------------------------------------------------------------------------------------
 LOGGING = {
-    "version": 1, "disable_existing_loggers": False,
+    "version": 1,
+    "disable_existing_loggers": False,
     "handlers": {"console": {"class": "logging.StreamHandler"}},
     "root": {"handlers": ["console"], "level": "INFO"},
     "loggers": {"django": {"handlers": ["console"], "level": "INFO", "propagate": False}},
 }
 
-# --- Integraciones ---
+# --------------------------------------------------------------------------------------
+# Integraciones externas
+# --------------------------------------------------------------------------------------
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
+# --------------------------------------------------------------------------------------
+# Campo automático
+# --------------------------------------------------------------------------------------
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
