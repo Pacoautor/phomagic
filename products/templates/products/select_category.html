@@ -1,12 +1,7 @@
-<!doctype html>
-<html lang="es">
-<head><meta charset="utf-8"><title>Selección inicial</title></head>
-<body>
-  <h1>1) Selección inicial</h1>
-  <form method="post" action="">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit">Continuar</button>
-  </form>
-</body>
-</html>
+<!doctype html><meta charset="utf-8">
+<h1>1) Selección inicial</h1>
+<form method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit">Continuar</button>
+</form>

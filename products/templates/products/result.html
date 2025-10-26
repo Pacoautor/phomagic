@@ -1,16 +1,9 @@
-<!doctype html>
-<html lang="es">
-<head><meta charset="utf-8"><title>Resultado</title></head>
-<body>
-  <h1>4) Resultado</h1>
-  <p>Selección: {{ selection }}</p>
-  {% if output_path %}
-    <p>Imagen generada:</p>
-    <img src="{{ output_path|cut:MEDIA_ROOT }}" alt="resultado" />
-  {% else %}
-    <p>No hay imagen aún.</p>
-  {% endif %}
-  <p><a href="{% url 'products:select_category' %}">Empezar de nuevo</a></p>
-</body>
-</html>
-
+<!doctype html><meta charset="utf-8">
+<h1>4) Resultado</h1>
+<p>Selección: {{ selection }}</p>
+{% if output_path %}
+  <p>Ruta de salida: {{ output_path }}</p>
+{% else %}
+  <p>No hay imagen generada.</p>
+{% endif %}
+<p><a href="{% url 'products:select_category' %}">Empezar de nuevo</a></p>
