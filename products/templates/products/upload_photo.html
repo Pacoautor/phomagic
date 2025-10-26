@@ -1,7 +1,35 @@
 <!doctype html><meta charset="utf-8">
 <h1>2) Subir imagen</h1>
+
+{% if selection %}
+<p><strong>Selección:</strong> {{ selection }}</p>
+{% endif %}
+
+{% if thumbnails %}
+  <h3>Vistas disponibles</h3>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px;max-width:900px">
+    {% for t in thumbnails %}
+      <div style="border:1px solid #ddd;padding:8px;text-align:center">
+        <img src="{{ t }}" alt="vista" style="max-width:100%;height:100px;object-fit:contain">
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p style="color:#666">No se encontraron miniaturas. Si tienes vistas, súbelas a
+    <code>products/static/products/lineas/</code> o a <code>/data/media/lineas/</code>.
+  </p>
+{% endif %}
+
+<hr>
+
+{% if error %}
+  <p style="color:#c00"><strong>Error al guardar:</strong> {{ error }}</p>
+{% endif %}
+
 <form method="post" enctype="multipart/form-data">
   {% csrf_token %}
   {{ form.as_p }}
   <button type="submit">Procesar</button>
 </form>
+
+<p><a href="{% url 'select_category' %}">Volver</a></p>
