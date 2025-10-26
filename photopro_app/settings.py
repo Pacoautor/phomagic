@@ -10,8 +10,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-insecure-key")
 DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
 
-ALLOWED_HOSTS = ["phomagic-web.onrender.com"] if not DEBUG else ["*"]
-CSRF_TRUSTED_ORIGINS = ["https://phomagic-web.onrender.com"]
+ALLOWED_HOSTS = [
+    "phomagic-web.onrender.com",
+    "phomagic.com",
+    "www.phomagic.com",
+] if not DEBUG else ["*"]
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://phomagic-web.onrender.com",
+    "https://phomagic.com",
+    "https://www.phomagic.com",
+]
+
 
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG

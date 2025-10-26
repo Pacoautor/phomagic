@@ -1,14 +1,18 @@
+# render.yaml — configuración final para Render (phomagic-web)
+
 services:
   - type: web
     name: phomagic-web
     env: python
     plan: starter
     region: frankfurt
+
     buildCommand: ./render-build.sh
     startCommand: >
       python manage.py migrate --noinput &&
       python manage.py collectstatic --noinput &&
       gunicorn photopro_app.wsgi:application --workers 2 --threads 2 --timeout 180
+
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.6
@@ -18,16 +22,23 @@ services:
         generateValue: true
       - key: DEBUG
         value: "false"
+
+      # Dominios permitidos
       - key: ALLOWED_HOSTS
-        value: phomagic-web.onrender.com
+        value: phomagic-web.onrender.com,phomagic.com,www.phomagic.com
+
+      # Orígenes seguros para formularios (CSRF)
       - key: CSRF_TRUSTED_ORIGINS
-        value: https://phomagic-web.onrender.com
+        value: https://phomagic-web.onrender.com,https://phomagic.com,https://www.phomagic.com
+
+      # Configuración estáticos y media
       - key: STATIC_URL
         value: /static/
       - key: MEDIA_URL
         value: /media/
       - key: MEDIA_ROOT
         value: /data/media
+
     disk:
       name: media-disk
       mountPath: /data
