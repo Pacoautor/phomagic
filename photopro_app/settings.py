@@ -54,8 +54,29 @@ TEMPLATES = [{
 }]
 
 # --- Base de datos (SQLite persistente en /data en prod) ---
-DEFAULT_DB_PATH = "/data/db.sqlite3" if not DEBUG else str(BASE_DIR / "db.sqlite3")
-DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": DEFAULT_DB_PATH}}
+# --------------------------------------------------------------------------------------
+# Base de datos
+# --------------------------------------------------------------------------------------
+import sys
+
+if os.environ.get("RENDER", "") == "true" and "build" in sys.argv:
+    # Fase de build en Render: usar DB temporal en memoria
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": ":memory:",
+        }
+    }
+else:
+    # En ejecución normal
+    DEFAULT_DB_PATH = "/data/db.sqlite3" if not DEBUG else str(BASE_DIR / "db.sqlite3")
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": DEFAULT_DB_PATH,
+        }
+    }
+
 
 # --- Estáticos y Media ---
 STATIC_URL = "/static/"
