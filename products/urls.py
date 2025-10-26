@@ -1,10 +1,8 @@
-# photopro_app/urls.py  (o el urls.py raíz que uses)
-from django.contrib import admin
-from django.urls import path, include
-
 # products/urls.py
 from django.urls import path
 from . import views
+
+app_name = "products"
 
 urlpatterns = [
     path("", views.select_category, name="select_category"),
