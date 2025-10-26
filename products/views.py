@@ -1,402 +1,164 @@
-# products/views.py
 import os
-import io
 import json
-import base64
-import unicodedata
+import uuid
 import logging
-from uuid import uuid4
-from pathlib import Path
-
-from django.conf import settings
 from django.shortcuts import render, redirect
-from django.contrib import messages
-from django.urls import reverse
-
-from PIL import Image, ImageOps, ImageFilter, ImageEnhance
+from django.conf import settings
+from django.core.files.storage import default_storage
+from django.http import JsonResponse
+from .forms import SelectionForm, UploadForm
 from openai import OpenAI
+from PIL import Image
+import numpy as np
 from docx import Document
 
-from .forms import SelectCategoryForm, UploadPhotoForm, ChooseViewForm, LogoForm
-from .quality_check import check_image_quality  # Control de calidad
-
-logger = logging.getLogger(__name__)
-client = OpenAI()
-
-# === Localiza carpeta de “líneas” (acepta 'lineas' o 'Lineas') ===
-_APP_DIR = Path(__file__).resolve().parent
-_LINEAS_CANDIDATES = [_APP_DIR / "lineas", _APP_DIR / "Lineas"]
-LINE_ROOT = next((p for p in _LINEAS_CANDIDATES if p.is_dir()), _LINEAS_CANDIDATES[0])
+logger = logging.getLogger("django")
+client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 
-# ===========================
-#   UTILIDADES
-# ===========================
+# ----------------------------------------------------------
+# Función auxiliar para crear directorios si no existen
+# ----------------------------------------------------------
 def ensure_dirs():
-    os.makedirs(os.path.join(settings.MEDIA_ROOT, 'uploads', 'input'), exist_ok=True)
-    os.makedirs(os.path.join(settings.MEDIA_ROOT, 'uploads', 'output'), exist_ok=True)
-    os.makedirs(os.path.join(settings.MEDIA_ROOT, 'uploads', 'tmp'), exist_ok=True)
-
-def _normalize(s: str) -> str:
-    s = (s or "").lower()
-    s = s.replace("(", "").replace(")", "").replace("[", "").replace("]", "")
-    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")
-    return s.strip()
-
-def list_line_thumbnails(category: str, subcategory: str):
-    """Devuelve [(num_vista, ruta_absoluta_imagen_lineas), ...]"""
-    try:
-        normalized_target = _normalize(f"{category}_{subcategory}")
-        if not Path(LINE_ROOT).exists():
-            logger.warning("LINE_ROOT no existe: %s", LINE_ROOT)
-            return []
-        folder_path = None
-        for folder in os.listdir(LINE_ROOT):
-            if _normalize(folder) == normalized_target:
-                folder_path = Path(LINE_ROOT) / folder
-                break
-        if folder_path is None or not folder_path.is_dir():
-            logger.info("No encontrada carpeta de vistas para: %s", normalized_target)
-            return []
-        views = []
-        for name in sorted(os.listdir(folder_path)):
-            if name.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
-                stem = os.path.splitext(name)[0]
-                try:
-                    num = int(stem)
-                    views.append((num, str(folder_path / name)))
-                except ValueError:
-                    continue
-        views.sort(key=lambda t: t[0])
-        return views
-    except Exception:
-        logger.exception("Error listando miniaturas")
-        return []
-
-def copy_to_media_and_get_url(abs_path):
-    """Copia un archivo al MEDIA_ROOT para poder servirlo, y devuelve (url, ruta_abs_en_media)."""
-    ensure_dirs()
-    try:
-        with open(abs_path, 'rb') as f:
-            data = f.read()
-    except FileNotFoundError:
-        logger.warning("Archivo de línea no encontrado: %s", abs_path)
-        return None, None
-    ext = os.path.splitext(abs_path)[1].lower().lstrip('.')
-    fname = f'uploads/input/{uuid4()}.{ext}'
-    media_abs = os.path.join(settings.MEDIA_ROOT, fname)
-    os.makedirs(os.path.dirname(media_abs), exist_ok=True)
-    with open(media_abs, 'wb') as out:
-        out.write(data)
-    return settings.MEDIA_URL + fname, media_abs
-
-def find_docx_for_view(source_folder: Path, chosen_view_num: int) -> Path:
-    """Selecciona el DOCX de la vista (robusto con espacios y mayúsculas)."""
-    folder = Path(source_folder)
-    if not folder.is_dir():
-        folder = folder.parent
-    want = str(chosen_view_num)
-    all_docx = [p for p in folder.iterdir() if p.is_file() and p.suffix.lower() == ".docx"]
-
-    def norm_name(p: Path) -> str:
-        name = p.stem
-        name = unicodedata.normalize("NFKD", name).lower().replace(" ", "")
-        return name
-
-    exact = [p for p in all_docx if norm_name(p).endswith(f"_{want}")]
-    if exact:
-        return exact[0]
-    contains = [p for p in all_docx if f"_{want}" in norm_name(p)]
-    if contains:
-        return contains[0]
-    # sufijo numérico final
-    for p in all_docx:
-        n = norm_name(p)
-        tail = ""
-        for ch in reversed(n):
-            if ch.isdigit():
-                tail = ch + tail
-            else:
-                break
-        if tail and tail == want:
-            return p
-
-    raise FileNotFoundError(
-        f"No encontré un .docx para la vista {chosen_view_num} en {folder}. "
-        f"Archivos .docx presentes: {[p.name for p in all_docx]}"
-    )
-
-def read_docx_text(path: Path) -> str:
-    doc = Document(path)
-    return "\n".join(p.text for p in doc.paragraphs).strip()
-
-def paste_logo_on_area(base_img: Image.Image, logo_img: Image.Image, rect):
-    x, y, w, h = rect
-    logo = logo_img.convert('RGBA')
-    logo = logo.resize((max(1, int(w)), max(1, int(h))), Image.LANCZOS)
-    base_rgba = base_img.convert('RGBA')
-    base_rgba.paste(logo, (int(x), int(y)), logo)
-    return base_rgba.convert('RGB')
-
-def enhance_mockup(abs_path_in, abs_path_out):
-    """Postpro con claridad + gamma equivalente a Photoshop 1.30."""
-    img = Image.open(abs_path_in).convert('RGB')
-    img = img.filter(ImageFilter.UnsharpMask(radius=2, percent=60, threshold=3))
-    img = ImageEnhance.Contrast(img).enhance(1.06)
-    img = ImageEnhance.Sharpness(img).enhance(1.08)
-    gamma = 1 / 1.30
-    lut = [min(255, int((i / 255.0) ** gamma * 255 + 0.5)) for i in range(256)]
-    img = img.point(lut * 3)
-    img.save(abs_path_out, quality=95)
+    os.makedirs(os.path.join(settings.MEDIA_ROOT, "uploads", "input"), exist_ok=True)
+    os.makedirs(os.path.join(settings.MEDIA_ROOT, "uploads", "output"), exist_ok=True)
+    os.makedirs(os.path.join(settings.MEDIA_ROOT, "uploads", "tmp"), exist_ok=True)
 
 
-# ===========================
-#          VISTAS
-# ===========================
+# ----------------------------------------------------------
+# Página principal: selección de categoría
+# ----------------------------------------------------------
 def select_category(request):
-    """Primer paso: selecciona categoría/subcategoría."""
-    if request.method == 'POST':
-        form = SelectCategoryForm(request.POST)
+    ensure_dirs()
+
+    if request.method == "POST":
+        # ==== LÍNEAS DE DEPURACIÓN AÑADIDAS ====
+        logger.info("=== SELECT_CATEGORY POST ===")
+        logger.info(f"Session ID: {request.session.session_key}")
+        logger.info(f"POST DATA: {request.POST}")
+        # ========================================
+
+        form = SelectionForm(request.POST)
         if form.is_valid():
-            request.session['selection'] = form.cleaned_data
+            selection = form.cleaned_data
+            request.session["selection"] = selection
             request.session.modified = True
-            request.session.save()  # fuerza guardado
-            return redirect('products:upload_photo')
+            logger.info(f"Selection stored in session: {selection}")
+            return redirect("upload_photo")
     else:
-        form = SelectCategoryForm()
-    return render(request, 'products/select_category.html', {'form': form})
+        form = SelectionForm()
 
+    return render(request, "products/select_category.html", {"form": form})
+
+
+# ----------------------------------------------------------
+# Subida de imagen
+# ----------------------------------------------------------
 def upload_photo(request):
-    """Segundo paso: subir foto + elegir vista; guarda sesión y pasa a 'processing'."""
+    ensure_dirs()
+    selection = request.session.get("selection")
+
+    if not selection:
+        logger.warning("Upload attempted without selection in session.")
+        return redirect("select_category")
+
+    if request.method == "POST":
+        form = UploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            image = form.cleaned_data["image"]
+            filename = default_storage.save(
+                os.path.join("uploads/input", image.name), image
+            )
+            input_path = os.path.join(settings.MEDIA_ROOT, filename)
+            job_id = str(uuid.uuid4())
+
+            tmp_data = {
+                "selection": selection,
+                "input_path": input_path,
+                "output_path": "",
+            }
+            tmp_file = os.path.join(settings.MEDIA_ROOT, "uploads/tmp", f"{job_id}.json")
+            with open(tmp_file, "w", encoding="utf-8") as f:
+                json.dump(tmp_data, f)
+
+            request.session["job_id"] = job_id
+            return redirect("processing")
+    else:
+        form = UploadForm()
+
+    return render(request, "products/upload_photo.html", {"form": form, "selection": selection})
+
+
+# ----------------------------------------------------------
+# Procesamiento de imagen con OpenAI
+# ----------------------------------------------------------
+def processing(request):
+    ensure_dirs()
+    job_id = request.session.get("job_id")
+
+    if not job_id:
+        return redirect("select_category")
+
+    tmp_file = os.path.join(settings.MEDIA_ROOT, "uploads/tmp", f"{job_id}.json")
+    if not os.path.exists(tmp_file):
+        return redirect("select_category")
+
+    with open(tmp_file, "r", encoding="utf-8") as f:
+        job_data = json.load(f)
+
+    input_path = job_data.get("input_path")
+    selection = job_data.get("selection", {})
+
+    # Determinar prompt según la selección
+    prompt = f"Genera una imagen relacionada con {selection.get('categoria', 'producto')} en fondo {selection.get('color_fondo', 'blanco')}."
+
+    # Llamada a la API de OpenAI para edición de imagen
     try:
-        selection = request.session.get('selection')
-        if not selection:
-            messages.error(request, "Vuelve a iniciar la selección.")
-            return redirect('products:select_category')
-
-        category = selection.get('category', '')
-        subcategory = selection.get('subcategory', '')
-
-        views_found = list_line_thumbnails(category, subcategory)
-        view_numbers = [num for num, _ in views_found]
-
-        if request.method == 'POST':
-            upload_form = UploadPhotoForm(request.POST, request.FILES)
-            choose_view_form = ChooseViewForm(request.POST, view_numbers=view_numbers)
-            logo_form = LogoForm(request.POST, request.FILES)
-
-            if not views_found:
-                messages.error(request, "No se han encontrado vistas para esta categoría/subcategoría.")
-                return render(request, 'products/upload_photo.html', {
-                    'selection': selection,
-                    'upload_form': upload_form,
-                    'choose_view_form': choose_view_form,
-                    'logo_form': logo_form,
-                    'thumbnails': [],
-                })
-
-            if upload_form.is_valid():
-                ensure_dirs()
-                # 1) Guardar foto del cliente
-                client_file = upload_form.cleaned_data['client_photo']
-                client_ext = os.path.splitext(client_file.name)[1].lower().lstrip('.')
-                input_rel = f'uploads/input/{uuid4()}.{client_ext}'
-                input_abs = os.path.join(settings.MEDIA_ROOT, input_rel)
-                os.makedirs(os.path.dirname(input_abs), exist_ok=True)
-                with open(input_abs, 'wb') as out:
-                    for chunk in client_file.chunks():
-                        out.write(chunk)
-                client_url = settings.MEDIA_URL + input_rel
-
-                # 2) Vista elegida (obligatoria)
-                raw_view = (request.POST.get('view_number') or "").strip()
-                if not (raw_view.isdigit() and int(raw_view) in view_numbers):
-                    messages.error(request, "Selecciona una vista válida.")
-                    return redirect('products:upload_photo')
-                chosen_view_num = int(raw_view)
-                logger.info(f"[upload_photo] Vista seleccionada: {chosen_view_num}")
-
-                # 3) Imagen de líneas y prompt .docx
-                chosen_abs = next((p for num, p in views_found if num == chosen_view_num), None)
-                if not chosen_abs:
-                    messages.error(request, 'No se encontró la vista seleccionada.')
-                    return redirect('products:upload_photo')
-                prompt_docx = find_docx_for_view(Path(chosen_abs).parent, chosen_view_num)
-
-                # 4) Copia de la miniatura a media (opcional)
-                line_url, line_abs = copy_to_media_and_get_url(chosen_abs)
-                if not line_abs:
-                    messages.error(request, "No se pudo preparar la vista seleccionada.")
-                    return redirect('products:upload_photo')
-
-                # 5) Guardar en sesión…
-                work = {
-                    'client_input_rel': input_rel,
-                    'client_url': client_url,
-                    'line_abs': line_abs,
-                    'line_url': line_url,
-                    'chosen_view_num': chosen_view_num,
-                    'prompt_docx_path': str(prompt_docx),
-                }
-                request.session['work'] = work
-                request.session.modified = True
-                request.session.save()  # fuerza guardado antes del redirect
-
-                # …y además guardarlo en fichero temporal con token “job”
-                job_token = str(uuid4())
-                tmp_json = os.path.join(settings.MEDIA_ROOT, 'uploads', 'tmp', f'{job_token}.json')
-                with open(tmp_json, 'w', encoding='utf-8') as fh:
-                    json.dump(work, fh)
-                request.session['work_token'] = job_token
-                request.session.modified = True
-                request.session.save()
-
-                # Ir a la pantalla de “Procesando…”
-                return redirect('products:processing')
-
-        else:
-            upload_form = UploadPhotoForm()
-            choose_view_form = ChooseViewForm(view_numbers=view_numbers)
-            logo_form = LogoForm()
-
-        # Miniaturas
-        thumbs = []
-        for num, abs_path in views_found:
-            url, _ = copy_to_media_and_get_url(abs_path)
-            if url:
-                thumbs.append((num, url))
-
-        return render(request, 'products/upload_photo.html', {
-            'selection': selection,
-            'upload_form': upload_form,
-            'choose_view_form': choose_view_form,
-            'logo_form': logo_form,
-            'thumbnails': thumbs,
-        })
-
-    except Exception:
-        logger.exception("Fallo inesperado en upload_photo")
-        messages.error(request, "Ha ocurrido un error al cargar la página. Inténtalo de nuevo.")
-        return redirect('products:select_category')
-
-def processing_view(request):
-    """
-    Tercer paso: pantalla de 'Imagen OK' con GIF (valida calidad aquí)
-    y meta-refresh automático a /result/?job=TOKEN para generar la imagen.
-    """
-    work = request.session.get('work')
-    token = request.session.get('work_token')
-    if not work or not token:
-        messages.error(request, "Falta información de trabajo (work/work_token). Vuelve a iniciar la selección.")
-        return redirect('products:select_category')
-
-    # Validación de calidad ANTES de lanzar la generación
-    client_abs = os.path.join(settings.MEDIA_ROOT, work['client_input_rel'])
-    ok, reasons = check_image_quality(client_abs)
-    if not ok:
-        msg = "La imagen no cumple los requisitos de calidad:\n- " + "\n- ".join(reasons)
-        messages.error(request, msg)
-        return redirect('products:upload_photo')
-
-    # URL de destino con el job token (para no depender de la sesión)
-    result_url = reverse('products:result') + f'?job={token}'
-
-    return render(request, 'products/processing.html', {
-        'gif_url': settings.STATIC_URL + 'products/circle-9360_512.gif',
-        'result_url': result_url,
-    })
-
-def _call_openai_edit(client_abs, prompt_text):
-    """Llamada a OpenAI: edición con imagen + prompt"""
-    with open(client_abs, "rb") as f:
-        resp = client.images.edit(
+        output_image = client.images.generate(
             model="gpt-image-1",
-            image=[f],
-            prompt=prompt_text,
+            prompt=prompt,
             size="1024x1024",
         )
-    img_b64 = resp.data[0].b64_json
-    if not img_b64:
-        raise ValueError("OpenAI no devolvió imagen en b64_json.")
-    return base64.b64decode(img_b64)
 
-def result_view(request):
-    """Cuarto paso: genera imagen con OpenAI y muestra resultado.
-       Si falta la sesión, intenta leer 'work' desde /media/uploads/tmp/<job>.json.
-       Si falla, muestra un mensaje DIAGNÓSTICO en lugar de mandarte al inicio sin más.
-    """
-    try:
-        ensure_dirs()
+        image_base64 = output_image.data[0].b64_json
+        output_data = np.frombuffer(bytes(image_base64, "utf-8"), dtype=np.uint8)
+        output_path = os.path.join(settings.MEDIA_ROOT, "uploads/output", f"{job_id}.png")
+        with open(output_path, "wb") as f:
+            f.write(output_data)
 
-        work = request.session.get('work')
+        job_data["output_path"] = output_path
+        with open(tmp_file, "w", encoding="utf-8") as f:
+            json.dump(job_data, f)
 
-        # Fallback: si no hay sesión, mirar ?job=TOKEN y cargar JSON
-        if not work:
-            job_token = request.GET.get('job')
-            if not job_token:
-                messages.error(request, "Falta 'job' en la URL y no hay sesión. No se puede continuar.")
-                return redirect('products:select_category')
+        request.session["job_id"] = job_id
+        return redirect("result")
+    except Exception as e:
+        logger.error(f"Error generating image: {e}")
+        return render(request, "products/error.html", {"message": str(e)})
 
-            tmp_json = os.path.join(settings.MEDIA_ROOT, 'uploads', 'tmp', f'{job_token}.json')
-            if not os.path.isfile(tmp_json):
-                messages.error(request, f"No existe el archivo de trabajo para job={job_token}: {tmp_json}")
-                return redirect('products:select_category')
 
-            with open(tmp_json, 'r', encoding='utf-8') as fh:
-                work = json.load(fh)
-            # Limpieza opcional
-            try:
-                os.remove(tmp_json)
-            except Exception:
-                pass
+# ----------------------------------------------------------
+# Resultado final
+# ----------------------------------------------------------
+def result(request):
+    ensure_dirs()
+    job_id = request.session.get("job_id")
 
-        # En este punto deberíamos tener 'work'
-        missing = [k for k in ['client_input_rel', 'chosen_view_num', 'prompt_docx_path'] if k not in work]
-        if missing:
-            messages.error(request, f"Faltan claves en work: {missing}. Vuelve a iniciar la selección.")
-            return redirect('products:select_category')
+    if not job_id:
+        return redirect("select_category")
 
-        client_abs = os.path.join(settings.MEDIA_ROOT, work['client_input_rel'])
-        chosen_view_num = int(work['chosen_view_num'])
-        prompt_docx_path = work.get('prompt_docx_path')
+    tmp_file = os.path.join(settings.MEDIA_ROOT, "uploads/tmp", f"{job_id}.json")
+    if not os.path.exists(tmp_file):
+        return redirect("select_category")
 
-        if not os.path.isfile(client_abs):
-            messages.error(request, f"No existe la imagen del cliente en: {client_abs}")
-            return redirect('products:upload_photo')
+    with open(tmp_file, "r", encoding="utf-8") as f:
+        job_data = json.load(f)
 
-        if not prompt_docx_path or not os.path.isfile(prompt_docx_path):
-            messages.error(request, f"No se encontró el prompt asociado a la vista. Ruta: {prompt_docx_path}")
-            return redirect('products:upload_photo')
+    output_path = job_data.get("output_path")
+    selection = job_data.get("selection", {})
 
-        prompt_text = read_docx_text(Path(prompt_docx_path))
-
-        # Llamada a OpenAI
-        result1_bytes = _call_openai_edit(client_abs=client_abs, prompt_text=prompt_text)
-
-        # Guardar resultado base
-        result1_rel = f'uploads/output/Resultado_1_{uuid4()}.jpg'
-        result1_abs = os.path.join(settings.MEDIA_ROOT, result1_rel)
-        with open(result1_abs, 'wb') as f:
-            f.write(result1_bytes)
-
-        # Postpro (claridad + gamma)
-        post_rel = f'uploads/output/Resultado_1_post_{uuid4()}.jpg'
-        post_abs = os.path.join(settings.MEDIA_ROOT, post_rel)
-        enhance_mockup(result1_abs, post_abs)
-        result1_url = settings.MEDIA_URL + post_rel
-
-        # Limpiar sesión temporal (si existiera)
-        request.session.pop('work', None)
-        request.session.pop('work_token', None)
-        request.session.pop('logo', None)
-
-        return render(request, 'products/result.html', {
-            'result1_url': result1_url,
-            'final_url': result1_url,
-            'used_logo': False,
-            'used_view': chosen_view_num,
-        })
-    except Exception:
-        logger.exception("Fallo inesperado en result_view")
-        messages.error(request, "Ha ocurrido un error generando el resultado.")
-        return redirect('products:upload_photo')
+    return render(
+        request,
+        "products/result.html",
+        {"output_path": output_path, "selection": selection},
+    )
