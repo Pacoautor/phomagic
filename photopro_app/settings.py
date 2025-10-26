@@ -33,6 +33,22 @@ CSRF_COOKIE_DOMAIN = ".phomagic.com"
 SESSION_COOKIE_SAMESITE = "Lax"   # seguro y permite POST normales
 CSRF_COOKIE_SAMESITE = "Lax"
 
+# ---- Sesiones robustas (cookies firmadas, sin DB) ----
+SESSION_ENGINE = "django.contrib.sessions.backends.signed_cookies"
+
+# Cookies válidas para dominio y subdominios (.phomagic.com)
+SESSION_COOKIE_DOMAIN = ".phomagic.com"
+CSRF_COOKIE_DOMAIN = ".phomagic.com"
+
+# Seguridad razonable en producción
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
+
+# (Opcional) duración de la sesión (en segundos). 2 horas:
+SESSION_COOKIE_AGE = 2 * 60 * 60
+
 
 # --------------------------------------------------------------------------------------
 # Aplicaciones
