@@ -14,10 +14,17 @@ logger = logging.getLogger("django")
 class UploadForm(forms.Form):
     image = forms.ImageField(label="Selecciona una imagen")
 
+# ----------------------------------------------------------
+# Utilidad: asegurar estructura de directorios en /data/media
+# ----------------------------------------------------------
 def ensure_dirs():
     base = Path(settings.MEDIA_ROOT)
-    for sub in ("uploads/input", "uploads/output", "uploads/tmp"):
-        (base / sub).mkdir(parents=True, exist_ok=True)
+    # Solo intentamos crear si realmente tenemos permisos de escritura
+    if os.access(base, os.W_OK):
+        for sub in ("uploads/input", "uploads/output", "uploads/tmp"):
+            (base / sub).mkdir(parents=True, exist_ok=True)
+    else:
+        logger.warning(f"MEDIA_ROOT no es escribible: {base}")
 
 def select_category(request):
     ensure_dirs()
