@@ -8,16 +8,16 @@ from pathlib import Path
 from django.conf import settings
 from django.shortcuts import render, redirect
 from django.core.files.storage import default_storage
-
-from .forms import SelectCategoryForm  # <-- este sí existe en tu forms.py
-
-# Formulario mínimo de subida definido aquí para no tocar products/forms.py
 from django import forms
-class UploadForm(forms.Form):
-    image = forms.ImageField(label="Selecciona una imagen")
 
+# Formulario de la página 1 (el que ya tienes en products/forms.py)
+from .forms import SelectCategoryForm
 
 logger = logging.getLogger("django")
+
+# Formulario mínimo de subida (lo definimos aquí para no tocar forms.py)
+class UploadForm(forms.Form):
+    image = forms.ImageField(label="Selecciona una imagen")
 
 
 # ----------------------------------------------------------
@@ -88,7 +88,7 @@ def upload_photo(request):
 
 
 # ----------------------------------------------------------
-# Paso 3: procesamiento (stub seguro)
+# Paso 3: procesamiento (lazy OpenAI y fallback seguro)
 # ----------------------------------------------------------
 def processing(request):
     ensure_dirs()
@@ -103,13 +103,31 @@ def processing(request):
     with open(tmp_file, "r", encoding="utf-8") as f:
         job = json.load(f)
 
-    # Aquí iría tu lógica real (OpenAI, PIL, etc.). Para probar el flujo, generamos un “output” dummy.
+    selection = job.get("selection", {})
+    prompt = f"Genera una imagen relacionada con {selection.get('categoria', 'producto')} en fondo {selection.get('color_fondo', 'blanco')}."
     output_path = os.path.join(settings.MEDIA_ROOT, "uploads/output", f"{job_id}.png")
-    # Creamos un archivo placeholder si no existe
-    if not os.path.exists(output_path):
-        with open(output_path, "wb") as f:
-            f.write(b"\x89PNG\r\n\x1a\n")  # cabecera PNG vacía para no romper la vista
 
+    # Intento de usar OpenAI SOLO aquí (nunca en import del módulo)
+    try:
+        from openai import OpenAI  # import local
+        api_key = settings.OPENAI_API_KEY or os.environ.get("OPENAI_API_KEY", "")
+        if not api_key:
+            raise RuntimeError("OPENAI_API_KEY no está configurada")
+
+        client = OpenAI(api_key=api_key)
+        # Si quieres usar edición real, aquí iría tu llamada. Dejo un placeholder:
+        # result = client.images.generate(model="gpt-image-1", prompt=prompt, size="1024x1024")
+        # with open(output_path, "wb") as f: f.write(base64.b64decode(result.data[0].b64_json))
+
+        # Placeholder para no romper: crea un PNG mínimo válido
+        _write_minimal_png(output_path)
+
+    except Exception as e:
+        logger.error(f"[processing] Fallback por error en OpenAI: {e}")
+        # Fallback seguro: generamos un PNG mínimo para que el flujo complete
+        _write_minimal_png(output_path)
+
+    # Guardamos la salida y seguimos
     job["output_path"] = output_path
     with open(tmp_file, "w", encoding="utf-8") as f:
         json.dump(job, f)
@@ -117,6 +135,27 @@ def processing(request):
     request.session["job_id"] = job_id
     request.session.modified = True
     return redirect("result")
+
+
+def _write_minimal_png(path: str):
+    """
+    Escribe un PNG válido mínimo (1x1 transparente) para pruebas de flujo.
+    """
+    try:
+        from PIL import Image
+        img = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        img.save(path, format="PNG")
+    except Exception as e:
+        # Último recurso: cabecera PNG + chunk IEND mínimo (no todos los visores lo aceptan)
+        logger.warning(f"No se pudo escribir PNG con PIL ({e}); usando fallback binario mínimo.")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(
+                b"\x89PNG\r\n\x1a\n"
+                b"\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
+                b"\x00\x00\x00\x0AIEND\xaeB`\x82"
+            )
 
 
 # ----------------------------------------------------------
