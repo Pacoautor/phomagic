@@ -46,11 +46,10 @@ def _simplify(s: str) -> str:
     return "".join(out).replace("_", " ").replace("-", " ").strip()
 
 def _asset_bases():
-    # 1) Tu ruta real
+    # 1) PRODUCCIÓN /data/lineas (persistente en Render)
+    yield settings.LINEAS_ROOT
+    # 2) Desarrollo local (opcional)
     yield Path(settings.BASE_DIR) / "products" / "lineas"
-    # 2) Opcionales
-    yield Path(settings.BASE_DIR) / "products" / "static" / "products" / "lineas"
-    yield Path(settings.MEDIA_ROOT) / "lineas"
 
 def _read_prompt_from_dir(line_dir: Path) -> str:
     files = sorted(glob(str(line_dir / "*.docx")))
@@ -298,3 +297,47 @@ def result(request):
             "selection": job.get("selection", {}),
         },
     )
+# ====== Carga de LINEAS por ZIP (protegido por clave) ======
+from django.http import HttpResponse, HttpResponseForbidden
+from zipfile import ZipFile, BadZipFile
+
+class UploadLineasForm(forms.Form):
+    zipfile = forms.FileField(label="ZIP con carpetas de líneas")
+
+def upload_lineas_zip(request):
+    """
+    Subida segura de un ZIP con líneas:
+    - Protegida por una clave en env: LINEAS_UPLOAD_KEY
+    - Extrae el ZIP en settings.LINEAS_ROOT
+    - No requiere tocar Git; pensada para Render (disco /data)
+    """
+    required_key = os.environ.get("LINEAS_UPLOAD_KEY", "").strip()
+    key = request.GET.get("key", "").strip() or request.POST.get("key", "").strip()
+    if not required_key or key != required_key:
+        return HttpResponseForbidden("No autorizado")
+
+    if request.method == "POST":
+        form = UploadLineasForm(request.POST, request.FILES)
+        if form.is_valid():
+            f = form.cleaned_data["zipfile"]
+            dest = settings.LINEAS_ROOT
+            dest.mkdir(parents=True, exist_ok=True)
+            try:
+                with ZipFile(f) as z:
+                    z.extractall(dest)
+                return HttpResponse("OK: líneas actualizadas en /data/lineas")
+            except BadZipFile:
+                return HttpResponse("Archivo ZIP inválido", status=400)
+        return HttpResponse("Solicitud inválida", status=400)
+
+    # Form simple para subir desde navegador si lo necesitas
+    html = """
+    <h3>Subir líneas (ZIP)</h3>
+    <form method="post" enctype="multipart/form-data">
+      <input type="hidden" name="key" value="{key}">
+      <input type="file" name="zipfile" accept=".zip" required>
+      <button type="submit">Subir</button>
+    </form>
+    """
+    return HttpResponse(html.format(key=required_key))
+

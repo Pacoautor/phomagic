@@ -83,6 +83,20 @@ MEDIA_ROOT = BASE_DIR / "media"   # <— en vez de /data/media
 for sub in ("uploads/input", "uploads/output", "uploads/tmp", "lineas"):
     (MEDIA_ROOT / sub).mkdir(parents=True, exist_ok=True)
 
+# === Carpetas de trabajo ===
+MEDIA_URL = "/media/"
+MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", Path(BASE_DIR) / "media"))
+
+# Dónde estarán las 'líneas' en Render (disco persistente)
+LINEAS_ROOT = Path(os.environ.get("LINEAS_ROOT", "/data/lineas"))
+
+# Crear carpetas SOLO si son escribibles (evita errores en build)
+for p in (MEDIA_ROOT, LINEAS_ROOT):
+    try:
+        if os.access(p.parent, os.W_OK):
+            p.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
 
 LANGUAGE_CODE = "es-es"
 TIME_ZONE = "Europe/Madrid"
