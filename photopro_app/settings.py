@@ -27,6 +27,12 @@ SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_SSL_REDIRECT = False
+# Cookies válidas para el dominio y subdominios (www y sin www)
+SESSION_COOKIE_DOMAIN = ".phomagic.com"
+CSRF_COOKIE_DOMAIN = ".phomagic.com"
+SESSION_COOKIE_SAMESITE = "Lax"   # seguro y permite POST normales
+CSRF_COOKIE_SAMESITE = "Lax"
+
 
 # --------------------------------------------------------------------------------------
 # Aplicaciones
