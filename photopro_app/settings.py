@@ -77,8 +77,12 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", "/data/media"))
-for sub in ("uploads/input", "uploads/output", "uploads/tmp"):
-    (MEDIA_ROOT / sub).mkdir(parents=True, exist_ok=True)
+
+# Solo crea las carpetas cuando el disco sea escribible
+if os.access(MEDIA_ROOT.parent, os.W_OK):
+    for sub in ("uploads/input", "uploads/output", "uploads/tmp"):
+        (MEDIA_ROOT / sub).mkdir(parents=True, exist_ok=True)
+
 
 LANGUAGE_CODE = "es-es"
 TIME_ZONE = "Europe/Madrid"
