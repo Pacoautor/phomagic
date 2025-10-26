@@ -9,9 +9,13 @@ services:
 
     buildCommand: ./render-build.sh
     startCommand: >
-      python manage.py migrate --noinput &&
-      python manage.py collectstatic --noinput &&
-      gunicorn photopro_app.wsgi:application --workers 2 --threads 2 --timeout 180
+      bash -lc '
+        mkdir -p /data/media/uploads/input /data/media/uploads/output /data/media/uploads/tmp &&
+        chmod -R 777 /data &&
+        python manage.py migrate --noinput &&
+        python manage.py collectstatic --noinput &&
+        gunicorn photopro_app.wsgi:application --workers 2 --threads 2 --timeout 180
+      '
 
     envVars:
       - key: PYTHON_VERSION
