@@ -1,5 +1,4 @@
 from django.contrib import admin
-<<<<<<< HEAD
 from .models import Category, SubCategory, ViewOption
 
 
@@ -22,7 +21,6 @@ class ViewOptionAdmin(admin.ModelAdmin):
     list_filter = ('subcategory',)
     search_fields = ('name',)
 
-=======
 from .models import Category, SubCategory, ViewOption, GeneratedImage
 
 @admin.register(Category)
@@ -46,4 +44,3 @@ class ViewOptionAdmin(admin.ModelAdmin):
 class GeneratedImageAdmin(admin.ModelAdmin):
     list_display = ("id", "input_image", "output_image", "created_at")
     readonly_fields = ("created_at",)
->>>>>>> 54dc87cf5bddeb97076c30df6ac7fe69845bb4d6

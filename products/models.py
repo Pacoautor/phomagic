@@ -1,9 +1,7 @@
-<<<<<<< HEAD
 from django.db import models
 
 class Category(models.Model):
     name = models.CharField(max_length=100)
-=======
 # products/models.py
 from django.db import models
 import os
@@ -50,7 +48,6 @@ class ViewOption(models.Model):
 
     def __str__(self):
         return f"{self.subcategory.name} - {self.name}"
-=======
 class SubCategory(models.Model):
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='subcategories')
     name = models.CharField(max_length=200)
@@ -74,4 +71,3 @@ class GeneratedImage(models.Model):
     input_image = models.ImageField(upload_to=upload_input_path)
     output_image = models.ImageField(upload_to=upload_output_path, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
->>>>>>> 54dc87cf5bddeb97076c30df6ac7fe69845bb4d6

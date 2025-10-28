@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import openai
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
@@ -42,7 +41,6 @@ def upload_image(request, view_id):
     else:
         form = ImageUploadForm()
     return render(request, 'upload.html', {'form': form, 'view': selected_view})
-=======
 import os
 import json
 import uuid
@@ -386,4 +384,3 @@ def upload_lineas_zip(request):
     """
     return HttpResponse(html.format(key=required_key))
 
->>>>>>> 54dc87cf5bddeb97076c30df6ac7fe69845bb4d6

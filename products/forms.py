@@ -1,9 +1,7 @@
 from django import forms
 
-<<<<<<< HEAD
 class ImageUploadForm(forms.Form):
     image = forms.ImageField(label="Sube tu imagen")
-=======
 CATEGORIAS = [
     ("Moda (textil)", "Moda (textil)"),
     ("Accesorios", "Accesorios"),
@@ -32,4 +30,3 @@ class SelectCategoryForm(forms.Form):
     seguimiento_logo = forms.BooleanField(
         label="Seguimiento de logotipo (Sí/No)", required=False
     )
->>>>>>> 54dc87cf5bddeb97076c30df6ac7fe69845bb4d6
