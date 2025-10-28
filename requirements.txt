@@ -1,0 +1,6 @@
+Django==5.1
+gunicorn
+python-dotenv
+Pillow
+openai>=1.0.0
+whitenoise
