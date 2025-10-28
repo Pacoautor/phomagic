@@ -26,14 +26,13 @@ def upload_output_path(instance, filename):
     return f'uploads/output/{uuid4()}.{ext}'
 
 class Category(models.Model):
-    name = models.CharField(max_length=200, unique=True)
-    image = models.ImageField(upload_to=upload_category_image, blank=True, null=True)
->>>>>>> 54dc87cf5bddeb97076c30df6ac7fe69845bb4d6
+    from django.db import models
 
-    def __str__(self):
-        return self.name
+class Producto(models.Model):
+    nombre = models.CharField(max_length=100)
+    descripcion = models.TextField()
+    precio = models.DecimalField(max_digits=10, decimal_places=2)
 
-<<<<<<< HEAD
 
 class SubCategory(models.Model):
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
