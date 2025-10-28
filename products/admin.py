@@ -4,22 +4,22 @@ from .models import Category, SubCategory, ViewOption, GeneratedImage
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ("id", "name")
-    search_fields = ("name",)
+    list_display = ("id", "category_name")
+    search_fields = ("category_name",)
 
 
 @admin.register(SubCategory)
 class SubCategoryAdmin(admin.ModelAdmin):
     list_display = ("id", "category", "name")
     list_filter = ("category",)
-    search_fields = ("name", "category__name")
+    search_fields = ("name", "category__category_name")
 
 
 @admin.register(ViewOption)
 class ViewOptionAdmin(admin.ModelAdmin):
     list_display = ("id", "subcategory", "name")
     list_filter = ("subcategory__category", "subcategory")
-    search_fields = ("name", "subcategory__name", "subcategory__category__name")
+    search_fields = ("name", "subcategory__name", "subcategory__category__category_name")
 
 
 @admin.register(GeneratedImage)
