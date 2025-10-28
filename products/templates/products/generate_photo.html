@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Generar foto – {{ subcategory.category.name }} / {{ subcategory.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <h1 class="mb-4">Generar foto – {{ subcategory.category.name }} / {{ subcategory.name }}</h1>
+
+  <form method="post" enctype="multipart/form-data" class="card bg-dark text-light border-0 shadow-sm p-4">
+    {% csrf_token %}
+
+    <!-- Prompt principal: NO visible para el cliente. Lo obtenemos del servidor.
+         Si quieres, dejamos un input hidden para trazas mínimas; puede omitirse y el servidor
+         igualmente tomará el prompt desde la DB. -->
+    {% if final_prompt %}
+      <input type="hidden" name="__prompt_shadow" value="1">
+    {% endif %}
+
+    <div class="mb-3">
+      <label class="form-label">Vista elegida</label>
+      <input class="form-control" value="{{ viewopt.name }}" disabled>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Imagen base del cliente (obligatoria)</label>
+      <input class="form-control" type="file" name="product_photo" accept="image/*" required>
+      <div class="form-text">Sube la foto del producto; aplicaremos automáticamente el estilo/ajustes de esta vista.</div>
+    </div>
+
+    {% if master_prompt_photo %}
+      <div class="mb-3">
+        <label class="form-label">Referencia interna (no visible al cliente)</label><br>
+        <img src="{{ master_prompt_photo.url }}" alt="Referencia" style="max-width:280px; height:auto; border:1px solid #333; border-radius:6px;">
+      </div>
+    {% endif %}
+
+    <button type="submit" class="btn btn-primary">Generar</button>
+    <a href="{% url 'view_options' subcategory.id %}" class="btn btn-outline-secondary ms-2">Volver</a>
+  </form>
+</div>
+{% endblock %}

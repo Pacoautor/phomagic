@@ -1,0 +1,236 @@
+[
+{
+  "model": "products.category",
+  "pk": 1,
+  "fields": {
+    "name": "ELECTRODOMESTICOS",
+    "image": "categories/eLECTRODOMESTICOS_def_ok_Sr5weEk.jpg"
+  }
+},
+{
+  "model": "products.category",
+  "pk": 2,
+  "fields": {
+    "name": "MODA",
+    "image": "categories/Moda_OK_Def.jpg"
+  }
+},
+{
+  "model": "products.category",
+  "pk": 3,
+  "fields": {
+    "name": "CALZADO",
+    "image": "categories/calzado_OK_Def.jpg"
+  }
+},
+{
+  "model": "products.category",
+  "pk": 4,
+  "fields": {
+    "name": "COMPLEMENTOS",
+    "image": "categories/Complemetos_definitivos.jpg"
+  }
+},
+{
+  "model": "products.category",
+  "pk": 5,
+  "fields": {
+    "name": "COSM╔TICOS",
+    "image": "categories/ChatGPT_Image_17_sept_2025_10_41_48.png"
+  }
+},
+{
+  "model": "products.category",
+  "pk": 6,
+  "fields": {
+    "name": "JARDIN",
+    "image": "categories/ChatGPT_Image_17_sept_2025_10_42_59.png"
+  }
+},
+{
+  "model": "products.category",
+  "pk": 7,
+  "fields": {
+    "name": "ANIMALES",
+    "image": "categories/ChatGPT_Image_17_sept_2025_10_41_41.png"
+  }
+},
+{
+  "model": "products.subcategory",
+  "pk": 3,
+  "fields": {
+    "category": 2,
+    "name": "CAMISETA PLEGADA CL┴SICA",
+    "image": ""
+  }
+},
+{
+  "model": "products.subcategory",
+  "pk": 4,
+  "fields": {
+    "category": 2,
+    "name": "CAMISETA MANIQU═ INVISIBLE",
+    "image": ""
+  }
+},
+{
+  "model": "products.subcategory",
+  "pk": 5,
+  "fields": {
+    "category": 2,
+    "name": "CAMISETA PLEGADA CUADRADA",
+    "image": ""
+  }
+},
+{
+  "model": "products.subcategory",
+  "pk": 6,
+  "fields": {
+    "category": 2,
+    "name": "CAMISA PLEGADA",
+    "image": ""
+  }
+},
+{
+  "model": "products.subcategory",
+  "pk": 7,
+  "fields": {
+    "category": 2,
+    "name": "CAMISA EXTENDIDA CL┴SICA",
+    "image": ""
+  }
+},
+{
+  "model": "products.subcategory",
+  "pk": 9,
+  "fields": {
+    "category": 2,
+    "name": "PANTALËN LARGO EXPUESTO CL┴SICO",
+    "image": ""
+  }
+},
+{
+  "model": "products.subcategory",
+  "pk": 10,
+  "fields": {
+    "category": 2,
+    "name": "CHAQUETA POSICIËN CL┴SICA",
+    "image": ""
+  }
+},
+{
+  "model": "products.subcategory",
+  "pk": 11,
+  "fields": {
+    "category": 2,
+    "name": "AMERICANA MANIQU═ INVISIBLE",
+    "image": "subcategories/Americana_ManiquÝ_invisible.png"
+  }
+},
+{
+  "model": "products.subcategory",
+  "pk": 12,
+  "fields": {
+    "category": 1,
+    "name": "ElectrodomÚsticos sin luz interior  Frontal",
+    "image": "subcategories/LAP_Frontal.png"
+  }
+},
+{
+  "model": "products.subcategory",
+  "pk": 13,
+  "fields": {
+    "category": 1,
+    "name": "ElectrodomÚsticos sin luz interior  45░ izquierda",
+    "image": "subcategories/LAP_IZ.png"
+  }
+},
+{
+  "model": "products.subcategory",
+  "pk": 14,
+  "fields": {
+    "category": 1,
+    "name": "ElectrodomÚsticos sin luz interior 45░ derecha",
+    "image": "subcategories/LAP_DE.png"
+  }
+},
+{
+  "model": "products.subcategory",
+  "pk": 15,
+  "fields": {
+    "category": 1,
+    "name": "ElectrodomÚsticos con luz interior  Frontal",
+    "image": "subcategories/LE_F.png"
+  }
+},
+{
+  "model": "products.subcategory",
+  "pk": 16,
+  "fields": {
+    "category": 1,
+    "name": "ElectrodomÚsticos con luz interior 45░ izquierda",
+    "image": "subcategories/LE_45I.png"
+  }
+},
+{
+  "model": "products.subcategory",
+  "pk": 17,
+  "fields": {
+    "category": 1,
+    "name": "ElectrodomÚsticos con luz interior 45░ derecha",
+    "image": "subcategories/LE_45D.png"
+  }
+},
+{
+  "model": "products.subcategory",
+  "pk": 18,
+  "fields": {
+    "category": 3,
+    "name": "Calzado deportivo",
+    "image": "subcategories/deportivo.png"
+  }
+},
+{
+  "model": "products.subcategory",
+  "pk": 19,
+  "fields": {
+    "category": 3,
+    "name": "Calzado Hombre",
+    "image": "subcategories/calzado_hombre.png"
+  }
+},
+{
+  "model": "products.subcategory",
+  "pk": 20,
+  "fields": {
+    "category": 3,
+    "name": "Calzado mujer",
+    "image": "subcategories/calzado_mujer.png"
+  }
+},
+{
+  "model": "products.subcategory",
+  "pk": 21,
+  "fields": {
+    "category": 3,
+    "name": "Calzado ni±os",
+    "image": "subcategories/calzado_ni±os.png"
+  }
+},
+{
+  "model": "products.subcategory",
+  "pk": 22,
+  "fields": {
+    "category": 3,
+    "name": "Sandalias",
+    "image": "subcategories/sandalias.png"
+  }
+},
+{
+  "model": "products.masterprompt",
+  "pk": 2,
+  "fields": {
+    "subcategory": 3,
+    "reference_name": "Camiseta plegada",
+    "reference_photo": "reference_photos/camiseta_1.jpg",
+    "prompt_text": 
