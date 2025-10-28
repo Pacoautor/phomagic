@@ -35,17 +35,17 @@ class Category(models.Model):
 
 # Modelo SubCategory
 class SubCategory(models.Model):
-    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='subcategories')
-    name = models.CharField(max_length=200)
-    image = models.ImageField(upload_to=upload_subcategory_image, blank=True, null=True)
+    category = models.ForeignKey('Category', on_delete=models.CASCADE, related_name='subcategories')
+    name = models.CharField(max_length=100)
 
     class Meta:
-        unique_together = ('category', 'name')
+        verbose_name = "Subcategory"
         verbose_name_plural = "Subcategories"
+        # Eliminamos constraints personalizadas para evitar conflictos
+        unique_together = ('category', 'name')
 
     def __str__(self):
-        return f'{self.category.category_name} / {self.name}'
-
+        return f"{self.name} ({self.category.category_name})"
 
 # Modelo ViewOption
 class ViewOption(models.Model):
