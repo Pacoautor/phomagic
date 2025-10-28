@@ -1,7 +1,10 @@
 from django.db import models
 
-class Category(models.Model):
-    name = models.CharField(max_length=100)
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ("id", "category_name")
+    search_fields = ("category_name",)
+
 # products/models.py
 from django.db import models
 import os
