@@ -1,46 +1,3 @@
-import openai
-from django.shortcuts import render, redirect
-from django.http import JsonResponse
-from django.conf import settings
-from .models import Category, SubCategory, ViewOption
-from .forms import ImageUploadForm
-from .utils import validate_image_quality
-
-openai.api_key = settings.OPENAI_API_KEY
-
-def index(request):
-    categories = Category.objects.all()
-    return render(request, 'index.html', {'categories': categories})
-
-def load_subcategories(request):
-    category_id = request.GET.get('category_id')
-    subcategories = SubCategory.objects.filter(category_id=category_id)
-    return JsonResponse(list(subcategories.values('id', 'name')), safe=False)
-
-def load_views(request):
-    subcat_id = request.GET.get('subcategory_id')
-    views = ViewOption.objects.filter(subcategory_id=subcat_id)
-    return JsonResponse(list(views.values('id', 'name', 'thumbnail')), safe=False)
-
-def upload_image(request, view_id):
-    selected_view = ViewOption.objects.get(id=view_id)
-    if request.method == 'POST':
-        form = ImageUploadForm(request.POST, request.FILES)
-        if form.is_valid():
-            image = form.cleaned_data['image']
-            ok, msg = validate_image_quality(image)
-            if not ok:
-                return render(request, 'upload.html', {'form': form, 'error': msg})
-            response = openai.images.generate(
-                model="gpt-image-1",
-                prompt=selected_view.prompt,
-                image=image
-            )
-            processed_url = response.data[0].url
-            return render(request, 'result.html', {'processed_url': processed_url})
-    else:
-        form = ImageUploadForm()
-    return render(request, 'upload.html', {'form': form, 'view': selected_view})
 import os
 import json
 import uuid
@@ -54,10 +11,12 @@ from django import forms
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.shortcuts import render, redirect
+from django.http import HttpResponse, HttpResponseForbidden
 
 from .forms import SelectCategoryForm
 from docx import Document
 from PIL import Image
+from zipfile import ZipFile, BadZipFile
 
 logger = logging.getLogger("django")
 
@@ -70,6 +29,10 @@ class UploadForm(forms.Form):
     asset_id = forms.CharField(widget=forms.HiddenInput(), required=True)
 
 
+class UploadLineasForm(forms.Form):
+    zipfile = forms.FileField(label="ZIP con carpetas de líneas")
+
+
 # =========================
 # Utilidades
 # =========================
@@ -77,6 +40,7 @@ def ensure_dirs():
     base = Path(settings.MEDIA_ROOT)
     for sub in ("uploads/input", "uploads/output", "uploads/tmp", "lineas"):
         (base / sub).mkdir(parents=True, exist_ok=True)
+
 
 def _simplify(s: str) -> str:
     s = unicodedata.normalize("NFKD", s)
@@ -88,11 +52,13 @@ def _simplify(s: str) -> str:
             out.append(ch)
     return "".join(out).replace("_", " ").replace("-", " ").strip()
 
+
 def _asset_bases():
     # 1) PRODUCCIÓN /data/lineas (persistente en Render)
     yield settings.LINEAS_ROOT
     # 2) Desarrollo local (opcional)
     yield Path(settings.BASE_DIR) / "products" / "lineas"
+
 
 def _read_prompt_from_dir(line_dir: Path) -> str:
     files = sorted(glob(str(line_dir / "*.docx")))
@@ -105,6 +71,7 @@ def _read_prompt_from_dir(line_dir: Path) -> str:
     except Exception as e:
         logger.warning(f"No se pudo leer DOCX {files[0]}: {e}")
         return "Genera una imagen del producto según la vista seleccionada."
+
 
 def _copy_to_media(src: Path) -> str:
     """
@@ -130,6 +97,7 @@ def _copy_to_media(src: Path) -> str:
         except Exception as e:
             logger.warning(f"No se pudo copiar {src} -> {dest}: {e}")
     return f"{settings.MEDIA_URL.rstrip('/')}/lineas/{rel}".replace("\\", "/")
+
 
 def _find_assets(selection: dict):
     """
@@ -160,6 +128,7 @@ def _find_assets(selection: dict):
                             "source_file": str(fp),
                         })
     return assets
+
 
 def _media_url_from_path(abs_path: str) -> str:
     rel = os.path.relpath(abs_path, settings.MEDIA_ROOT)
@@ -278,22 +247,15 @@ def processing(request):
 
     try:
         # Llamada real a OpenAI (gpt-image-1).
-        # NOTA: Para combinar foto + prompt, usamos "edits" si tu librería lo soporta,
-        # si no, hay proveedores que requieren 'images.generate' con 'image[]'.
         from openai import OpenAI
         client = OpenAI(api_key=api_key)
 
         with open(input_path, "rb") as fin:
-            # Si tu versión soporta edits:
-            #   resp = client.images.edit(model="gpt-image-1", image=fin, prompt=prompt, size="1024x1024")
-            # Si no, algunos empaquetan como "image[]":
-            #   resp = client.images.generate(model="gpt-image-1", prompt=prompt, image=fin, size="1024x1024")
-            # Para máxima compatibilidad uso generate con "image" cuando está disponible:
             resp = client.images.generate(
                 model="gpt-image-1",
                 prompt=prompt,
                 size="1024x1024",
-                image=fin,   # si tu SDK no acepta 'image' aquí, cambia a images.edit como comentado arriba
+                image=fin,
             )
 
         b64 = resp.data[0].b64_json
@@ -340,13 +302,9 @@ def result(request):
             "selection": job.get("selection", {}),
         },
     )
+
+
 # ====== Carga de LINEAS por ZIP (protegido por clave) ======
-from django.http import HttpResponse, HttpResponseForbidden
-from zipfile import ZipFile, BadZipFile
-
-class UploadLineasForm(forms.Form):
-    zipfile = forms.FileField(label="ZIP con carpetas de líneas")
-
 def upload_lineas_zip(request):
     """
     Subida segura de un ZIP con líneas:
@@ -383,4 +341,3 @@ def upload_lineas_zip(request):
     </form>
     """
     return HttpResponse(html.format(key=required_key))
-
