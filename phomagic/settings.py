@@ -18,7 +18,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # CONFIGURACIÓN BÁSICA
 # ----------------------------------------------------
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-this")
-DEBUG = os.getenv("DEBUG", "0") == "1"
+DEBUG = os.getenv("DEBUG", "False").lower() in ["1", "true", "yes"]
 
 ALLOWED_HOSTS = [
     "phomagic-web.onrender.com",
@@ -172,3 +172,20 @@ if not DEBUG:
 # CONFIGURACIÓN FINAL
 # ----------------------------------------------------
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+
+# Mostrar errores en consola (Render)
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "DEBUG",
+    },
+}
+
