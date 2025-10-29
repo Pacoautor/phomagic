@@ -1,18 +1,12 @@
 from django.contrib import admin
 from django.urls import path, include
-from products import views  # 👈 Importamos la vista index
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-
-    # 👇 Ruta principal (home)
-    path('', views.index, name='home'),
-
-    # 👇 Rutas de la app products
-    path('products/', include('products.urls')),
+    path('', include('products.urls')),  # 👈 Incluye todas las rutas de la app products
 ]
 
-# 👇 Esto sirve para servir archivos de medios en modo DEBUG
+# Servir archivos estáticos y media si estás en modo DEBUG
 from django.conf import settings
 from django.conf.urls.static import static
 
