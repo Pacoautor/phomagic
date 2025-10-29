@@ -1,19 +1,22 @@
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 import dj_database_url
 
-# Cargar variables desde .env (si existe en local)
+# ----------------------------------------------------
+# CARGA DE VARIABLES .ENV (si existe en local)
+# ----------------------------------------------------
 load_dotenv()
 
-# ----------------------------
+# ----------------------------------------------------
 # RUTAS BASE
-# ----------------------------
+# ----------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# ----------------------------
+# ----------------------------------------------------
 # CONFIGURACIÓN BÁSICA
-# ----------------------------
+# ----------------------------------------------------
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-this")
 DEBUG = os.getenv("DEBUG", "0") == "1"
 
@@ -31,9 +34,9 @@ CSRF_TRUSTED_ORIGINS = [
     "https://www.phomagic.com",
 ]
 
-# ----------------------------
+# ----------------------------------------------------
 # APLICACIONES
-# ----------------------------
+# ----------------------------------------------------
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -42,11 +45,12 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "products",
+    "catalog",  # <- añadido si tu aplicación usa categorías
 ]
 
-# ----------------------------
+# ----------------------------------------------------
 # MIDDLEWARE
-# ----------------------------
+# ----------------------------------------------------
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -57,15 +61,22 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-# ----------------------------
+# ----------------------------------------------------
 # URLS Y WSGI
-# ----------------------------
+# ----------------------------------------------------
 ROOT_URLCONF = "phomagic.urls"
+WSGI_APPLICATION = "phomagic.wsgi.application"
 
+# ----------------------------------------------------
+# PLANTILLAS
+# ----------------------------------------------------
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [os.path.join(BASE_DIR, "products", "templates")],
+        "DIRS": [
+            os.path.join(BASE_DIR, "templates"),
+            os.path.join(BASE_DIR, "products", "templates"),
+        ],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -78,11 +89,9 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "phomagic.wsgi.application"
-
-# ----------------------------
+# ----------------------------------------------------
 # BASE DE DATOS
-# ----------------------------
+# ----------------------------------------------------
 DATABASES = {
     "default": dj_database_url.config(
         default=os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),
@@ -90,9 +99,9 @@ DATABASES = {
     )
 }
 
-# ----------------------------
-# CONTRASEÑAS Y VALIDACIÓN
-# ----------------------------
+# ----------------------------------------------------
+# VALIDADORES DE CONTRASEÑA
+# ----------------------------------------------------
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
@@ -100,17 +109,17 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-# ----------------------------
+# ----------------------------------------------------
 # INTERNACIONALIZACIÓN
-# ----------------------------
+# ----------------------------------------------------
 LANGUAGE_CODE = "es-es"
 TIME_ZONE = "Europe/Madrid"
 USE_I18N = True
 USE_TZ = True
 
-# ----------------------------
+# ----------------------------------------------------
 # ARCHIVOS ESTÁTICOS Y MEDIA
-# ----------------------------
+# ----------------------------------------------------
 STATIC_URL = "/static/"
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 STATICFILES_DIRS = [os.path.join(BASE_DIR, "products", "static")]
@@ -118,24 +127,48 @@ STATICFILES_DIRS = [os.path.join(BASE_DIR, "products", "static")]
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
-# ----------------------------
-# CONFIGURACIÓN DE LA API OPENAI
-# ----------------------------
+# ----------------------------------------------------
+# CONFIGURACIÓN OPENAI
+# ----------------------------------------------------
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# ----------------------------
-# AUTO FIELD
-# ----------------------------
-DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+# ----------------------------------------------------
+# LOGGING — Mostrar errores 500 en consola (para Render)
+# ----------------------------------------------------
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "[{levelname}] {asctime} {module} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "stream": sys.stdout,
+            "formatter": "verbose",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "DEBUG" if DEBUG else "INFO",
+    },
+}
 
-# ----------------------------
-# CONFIGURACIÓN RENDER
-# ----------------------------
+# ----------------------------------------------------
+# CONFIGURACIÓN DE SEGURIDAD (solo producción)
+# ----------------------------------------------------
 if not DEBUG:
-    # Seguridad para producción
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_HSTS_SECONDS = 3600
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
+
+# ----------------------------------------------------
+# CONFIGURACIÓN FINAL
+# ----------------------------------------------------
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
