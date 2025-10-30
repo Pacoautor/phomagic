@@ -14,6 +14,9 @@ load_dotenv()
 # ----------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Directorio para las líneas de productos (persistente en Render)
+LINEAS_ROOT = Path('/data/lineas')
+
 # ----------------------------------------------------
 # CONFIGURACIÓN BÁSICA
 # ----------------------------------------------------
@@ -45,7 +48,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "products",
-    "catalog",  # <- añadido si tu aplicación usa categorías
+    "catalog",
 ]
 
 # ----------------------------------------------------
@@ -172,20 +175,3 @@ if not DEBUG:
 # CONFIGURACIÓN FINAL
 # ----------------------------------------------------
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
-
-
-# Mostrar errores en consola (Render)
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-        },
-    },
-    "root": {
-        "handlers": ["console"],
-        "level": "DEBUG",
-    },
-}
-
