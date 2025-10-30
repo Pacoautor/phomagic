@@ -15,7 +15,7 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Directorio para las líneas de productos (persistente en Render)
-LINEAS_ROOT = Path('/data/lineas')
+LINEAS_ROOT = Path('/opt/render/project/src/media/lineas')
 
 # ----------------------------------------------------
 # CONFIGURACIÓN BÁSICA
