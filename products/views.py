@@ -126,6 +126,7 @@ def _find_assets(selection: dict):
                         img_name = fp.stem  # nombre sin extensión
                         if img_name not in processed_images:
                             processed_images.add(img_name)
+                            asset_id = str(hash(str(fp)))
                             assets.append({
                                 "id": asset_id,
                                 "thumb_url": _copy_to_media(fp),
@@ -133,7 +134,6 @@ def _find_assets(selection: dict):
                                 "source_file": str(fp),
                             })
     return assets
-
 
 def _media_url_from_path(abs_path: str) -> str:
     rel = os.path.relpath(abs_path, settings.MEDIA_ROOT)
