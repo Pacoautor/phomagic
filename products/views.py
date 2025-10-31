@@ -135,6 +135,7 @@ def _find_assets(selection: dict):
                             })
     return assets
 
+
 def _media_url_from_path(abs_path: str) -> str:
     rel = os.path.relpath(abs_path, settings.MEDIA_ROOT)
     return f"{settings.MEDIA_URL.rstrip('/')}/{rel.replace(os.sep, '/')}"
@@ -252,9 +253,11 @@ def processing(request):
     # Requerir API KEY
     api_key = (getattr(settings, "OPENAI_API_KEY", "") or os.environ.get("OPENAI_API_KEY") or "").strip()
     if not api_key:
-        return render(request, "products/error.html", {
-            "message": "OPENAI_API_KEY no está configurada. Configúrala en Render → Environment."
-        }, status=500)
+        return HttpResponse(f"""
+            <h1>Error</h1>
+            <p>OPENAI_API_KEY no está configurada. Configúrala en Render → Environment.</p>
+            <a href="/">Volver al inicio</a>
+        """)
 
     try:
         # Llamada real a OpenAI (gpt-image-1).
@@ -286,9 +289,11 @@ def processing(request):
 
     except Exception as e:
         logger.error(f"[processing] Error llamando a OpenAI: {e}", exc_info=True)
-        return render(request, "products/error.html", {
-            "message": f"Error al generar la imagen con OpenAI: {e}"
-        }, status=500)
+        return HttpResponse(f"""
+            <h1>Error al procesar imagen</h1>
+            <p>{str(e)}</p>
+            <a href="/">Volver al inicio</a>
+        """)
 
 
 def result(request):
