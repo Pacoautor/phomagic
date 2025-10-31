@@ -265,13 +265,12 @@ def processing(request):
         client = OpenAI(api_key=api_key)
 
         with open(input_path, "rb") as fin:
-            resp = client.images.generate(
-                model="gpt-image-1",
+            resp = client.images.edit(
+                model="dall-e-2",
+                image=fin,
                 prompt=prompt,
                 size="1024x1024",
-                image=fin,
             )
-
         b64 = resp.data[0].b64_json
         img_bytes = base64.b64decode(b64)
         with open(output_path, "wb") as fout:
