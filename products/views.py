@@ -260,7 +260,17 @@ def processing(request):
         """)
 
     try:
-        # Llamada real a OpenAI (gpt-image-1).
+        # Convertir imagen a PNG si no lo es
+        from PIL import Image as PILImage
+        img = PILImage.open(input_path)
+        
+        # Si no es PNG, convertir
+        if img.format != 'PNG':
+            png_path = str(Path(input_path).with_suffix('.png'))
+            img.save(png_path, 'PNG')
+            input_path = png_path
+        
+        # Llamada real a OpenAI (dall-e-2).
         from openai import OpenAI
         client = OpenAI(api_key=api_key)
 
@@ -271,7 +281,6 @@ def processing(request):
                 prompt=prompt,
                 size="1024x1024",
             )
-
         b64 = resp.data[0].b64_json
         img_bytes = base64.b64decode(b64)
         with open(output_path, "wb") as fout:
