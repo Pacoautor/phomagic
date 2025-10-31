@@ -127,7 +127,7 @@ def _find_assets(selection: dict):
                         if img_name not in processed_images:
                             processed_images.add(img_name)
                             assets.append({
-                                "id": str(uuid.uuid4()),
+                                "id": asset_id,
                                 "thumb_url": _copy_to_media(fp),
                                 "prompt": prompt,
                                 "source_file": str(fp),
