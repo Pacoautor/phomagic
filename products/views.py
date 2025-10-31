@@ -17,6 +17,7 @@ from .forms import SelectCategoryForm
 from docx import Document
 from PIL import Image
 from zipfile import ZipFile, BadZipFile
+from openai import OpenAI
 
 logger = logging.getLogger("django")
 
@@ -54,9 +55,7 @@ def _simplify(s: str) -> str:
 
 
 def _asset_bases():
-    # 1) PRODUCCIÓN /opt/render/project/src/media/lineas (persistente en Render)
     yield settings.LINEAS_ROOT
-    # 2) Desarrollo local (opcional)
     yield Path(settings.BASE_DIR) / "products" / "lineas"
 
 
@@ -74,10 +73,6 @@ def _read_prompt_from_dir(line_dir: Path) -> str:
 
 
 def _copy_to_media(src: Path) -> str:
-    """
-    Copia miniaturas a MEDIA_ROOT/lineas/... para que sean accesibles como /media/lineas/...
-    Devuelve la URL resultante.
-    """
     ensure_dirs()
     rel = src.name
     for base in _asset_bases():
@@ -91,7 +86,6 @@ def _copy_to_media(src: Path) -> str:
     dest.parent.mkdir(parents=True, exist_ok=True)
     if not dest.exists():
         try:
-            # copia binaria
             with open(src, "rb") as fin, open(dest, "wb") as fout:
                 fout.write(fin.read())
         except Exception as e:
@@ -100,16 +94,11 @@ def _copy_to_media(src: Path) -> str:
 
 
 def _find_assets(selection: dict):
-    """
-    Busca carpeta que contenga categoria y subcategoria (ignorando acentos/espacios/mayúsculas)
-    y devuelve miniaturas + prompt.
-    """
     want_cat = _simplify(selection.get("categoria", ""))
     want_sub = _simplify(selection.get("subcategoria", ""))
-
     assets = []
     patterns = ("*.png", "*.jpg", "*.jpeg", "*.webp")
-    processed_images = set()  # Para evitar duplicados
+    processed_images = set()
 
     for base in _asset_bases():
         if not base.exists():
@@ -122,8 +111,7 @@ def _find_assets(selection: dict):
                 prompt = _read_prompt_from_dir(d)
                 for pat in patterns:
                     for fp in sorted(d.glob(pat)):
-                        # Solo procesar cada imagen una vez
-                        img_name = fp.stem  # nombre sin extensión
+                        img_name = fp.stem
                         if img_name not in processed_images:
                             processed_images.add(img_name)
                             asset_id = str(hash(str(fp)))
@@ -134,11 +122,6 @@ def _find_assets(selection: dict):
                                 "source_file": str(fp),
                             })
     return assets
-
-
-def _media_url_from_path(abs_path: str) -> str:
-    rel = os.path.relpath(abs_path, settings.MEDIA_ROOT)
-    return f"{settings.MEDIA_URL.rstrip('/')}/{rel.replace(os.sep, '/')}"
 
 
 # =========================
@@ -164,50 +147,30 @@ def upload_photo(request):
         return redirect("select_category")
 
     assets = _find_assets(selection)
-
-    # Si hay assets, el usuario debe elegir uno; si no, igual puede subir su foto (pero pedimos asset por consistencia)
-    initial = {}
-    form = UploadForm(request.POST or None, request.FILES or None, initial=initial)
-
+    form = UploadForm(request.POST or None, request.FILES or None)
     error_msg = ""
+
     if request.method == "POST":
-        # Validación personalizada:
-        #  - Debe haber asset elegido
-        #  - Imagen obligatoria y válida (formato y tamaño)
         chosen_id = request.POST.get("asset_choice") or request.POST.get("asset_id")
-        print(f"DEBUG: chosen_id = {chosen_id}")
-        print(f"DEBUG: POST data = {request.POST}")
-        print(f"DEBUG: Available assets = {[a['id'] for a in assets]}")
-        
         if not chosen_id:
             error_msg = "Debes seleccionar una vista."
         elif "image" not in request.FILES:
             error_msg = "Debes subir una imagen."
         else:
             image_file = request.FILES["image"]
-            # Tamaño de archivo
-            max_mb = 15
-            if image_file.size > max_mb * 1024 * 1024:
-                error_msg = f"La imagen excede {max_mb} MB."
-            else:
-                # Validar dimensiones mínimas (ej. 512x512)
-                try:
-                    image_file.seek(0)  # MOVER AQUÍ AL INICIO
-                    im = Image.open(image_file)
-                    w, h = im.size
-                    if min(w, h) < 512:
-                        error_msg = "La imagen es demasiado pequeña. Mínimo 512x512."
-                    # NO CERRAR: im.close()
-                except Exception:
-                    error_msg = "Archivo de imagen no válido."
+            try:
+                im = Image.open(image_file)
+                w, h = im.size
+                if min(w, h) < 512:
+                    error_msg = "La imagen es demasiado pequeña (mínimo 512x512)."
+            except Exception:
+                error_msg = "Archivo de imagen no válido."
 
         if not error_msg:
-            # Guardar imagen subida
-            image_file.seek(0)  # Resetear de nuevo antes de guardar
+            image_file.seek(0)
             rel_path = default_storage.save(os.path.join("uploads/input", image_file.name), image_file)
             input_path = os.path.join(settings.MEDIA_ROOT, rel_path)
 
-            # Buscar prompt del asset elegido
             chosen = next((a for a in assets if a["id"] == chosen_id), None)
             if not chosen:
                 error_msg = "La vista elegida no es válida."
@@ -217,104 +180,82 @@ def upload_photo(request):
                 tmp_file.parent.mkdir(parents=True, exist_ok=True)
                 with open(tmp_file, "w", encoding="utf-8") as f:
                     json.dump({
-                        "selection": selection,
                         "input_path": input_path,
-                        "prompt": chosen["prompt"],
+                        "prompt": chosen["prompt"]
                     }, f)
                 request.session["job_id"] = job_id
                 request.session.modified = True
                 return redirect("processing")
 
-    return render(
-        request,
-        "products/upload_photo.html",
-        {"form": form, "selection": selection, "assets": assets, "error": error_msg},
-    )
+    return render(request, "products/upload_photo.html", {
+        "form": form,
+        "selection": selection,
+        "assets": assets,
+        "error": error_msg,
+    })
 
 
 def processing(request):
-    from django.shortcuts import render
-    from django.conf import settings
-    from PIL import Image as PILImage
-    from openai import OpenAI
-    import os
-    from pathlib import Path
-    import base64
-    import tempfile
-
-    # Obtener claves y datos
+    ensure_dirs()
     api_key = settings.OPENAI_API_KEY
     if not api_key:
-        return render(request, "error.html", {
-            "error": "OPENAI_API_KEY no está configurada. Configúrala en Render → Environment."
-        })
+        return render(request, "error.html", {"error": "Falta la clave de API de OpenAI."})
 
     try:
-        # Obtener selección desde la sesión
-        selection = request.session.get("selection", {})
-        image_path = request.session.get("uploaded_image")
+        job_id = request.session.get("job_id")
+        tmp_file = Path(settings.MEDIA_ROOT) / "uploads" / "tmp" / f"{job_id}.json"
+        if not tmp_file.exists():
+            return render(request, "error.html", {"error": "No se encontró la tarea guardada."})
 
-        if not image_path or not os.path.exists(image_path):
+        with open(tmp_file, "r", encoding="utf-8") as f:
+            job = json.load(f)
+
+        input_path = job.get("input_path")
+        prompt = job.get("prompt")
+
+        if not os.path.exists(input_path):
             return render(request, "error.html", {"error": "No se encontró la imagen subida."})
 
-        # Leer el prompt correspondiente a la vista seleccionada
-        prompt_file = selection.get("prompt_file")
-        if not prompt_file or not os.path.exists(prompt_file):
-            return render(request, "error.html", {"error": "No se encontró el prompt para la vista seleccionada."})
-
-        with open(prompt_file, "r", encoding="utf-8") as f:
-            prompt_text = f.read().strip()
-
-        input_path = image_path
-
-        # 🔹 Convertir imagen a formato válido para OpenAI
-        img = PILImage.open(input_path)
-
-        # Convertir a RGBA si no lo está (OpenAI requiere canal alfa)
+        # Convertir la imagen a RGBA PNG antes de enviar
+        img = Image.open(input_path)
         if img.mode != "RGBA":
-            rgba_path = str(Path(input_path).with_suffix(".png"))
             img = img.convert("RGBA")
+            rgba_path = str(Path(input_path).with_suffix(".png"))
             img.save(rgba_path, "PNG")
             input_path = rgba_path
-        else:
-            # Si ya es PNG con RGBA, aseguramos formato correcto
-            if img.format != "PNG":
-                png_path = str(Path(input_path).with_suffix(".png"))
-                img.save(png_path, "PNG")
-                input_path = png_path
 
-        # 🔹 Llamada real a OpenAI (DALL-E 2)
         client = OpenAI(api_key=api_key)
         with open(input_path, "rb") as fin:
             result = client.images.edit(
                 model="gpt-image-1",
                 image=fin,
-                prompt=prompt_text,
+                prompt=prompt,
                 size="1024x1024"
             )
 
-        # Guardar imagen generada temporalmente
         image_base64 = result.data[0].b64_json
-        image_bytes = base64.b64decode(image_base64)
+        output_bytes = base64.b64decode(image_base64)
 
-        temp_output = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-        temp_output.write(image_bytes)
-        temp_output.close()
+        output_path = Path(settings.MEDIA_ROOT) / "uploads" / "output" / f"{job_id}.png"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(output_path, "wb") as fout:
+            fout.write(output_bytes)
 
-        result_url = temp_output.name
+        output_url = f"{settings.MEDIA_URL.rstrip('/')}/uploads/output/{job_id}.png"
 
-        return render(request, "result.html", {"image_path": result_url})
+        job["output_url"] = output_url
+        with open(tmp_file, "w", encoding="utf-8") as f:
+            json.dump(job, f)
+
+        return render(request, "products/result.html", {"output_url": output_url})
 
     except Exception as e:
-        return render(request, "error.html", {"error": f"Error al procesar imagen: {e}"})
+        logger.exception("Error en procesamiento de imagen")
+        return render(request, "error.html", {"error": f"Error al procesar la imagen: {e}"})
 
 
 def result(request):
-    ensure_dirs()
     job_id = request.session.get("job_id")
-    if not job_id:
-        return redirect("select_category")
-
     tmp_file = Path(settings.MEDIA_ROOT) / "uploads" / "tmp" / f"{job_id}.json"
     if not tmp_file.exists():
         return redirect("select_category")
@@ -322,25 +263,10 @@ def result(request):
     with open(tmp_file, "r", encoding="utf-8") as f:
         job = json.load(f)
 
-    return render(
-        request,
-        "products/result.html",
-        {
-            "output_url": job.get("output_url"),
-            "output_path": job.get("output_path"),
-            "selection": job.get("selection", {}),
-        },
-    )
+    return render(request, "products/result.html", {"output_url": job.get("output_url")})
 
 
-# ====== Carga de LINEAS por ZIP (protegido por clave) ======
 def upload_lineas_zip(request):
-    """
-    Subida segura de un ZIP con líneas:
-    - Protegida por una clave en env: LINEAS_UPLOAD_KEY
-    - Extrae el ZIP en settings.LINEAS_ROOT
-    - No requiere tocar Git; pensada para Render (disco /data)
-    """
     required_key = os.environ.get("LINEAS_UPLOAD_KEY", "").strip()
     key = request.GET.get("key", "").strip() or request.POST.get("key", "").strip()
     if not required_key or key != required_key:
@@ -355,18 +281,9 @@ def upload_lineas_zip(request):
             try:
                 with ZipFile(f) as z:
                     z.extractall(dest)
-                return HttpResponse("OK: líneas actualizadas en /data/lineas")
+                return HttpResponse("OK: líneas actualizadas")
             except BadZipFile:
                 return HttpResponse("Archivo ZIP inválido", status=400)
         return HttpResponse("Solicitud inválida", status=400)
 
-    # Form simple para subir desde navegador si lo necesitas
-    html = """
-    <h3>Subir líneas (ZIP)</h3>
-    <form method="post" enctype="multipart/form-data">
-      <input type="hidden" name="key" value="{key}">
-      <input type="file" name="zipfile" accept=".zip" required>
-      <button type="submit">Subir</button>
-    </form>
-    """
-    return HttpResponse(html.format(key=required_key))
+    return HttpResponse("<h3>Subir líneas ZIP</h3>")
