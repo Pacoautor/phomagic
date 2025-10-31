@@ -54,7 +54,7 @@ def _simplify(s: str) -> str:
 
 
 def _asset_bases():
-    # 1) PRODUCCIÓN /data/lineas (persistente en Render)
+    # 1) PRODUCCIÓN /opt/render/project/src/media/lineas (persistente en Render)
     yield settings.LINEAS_ROOT
     # 2) Desarrollo local (opcional)
     yield Path(settings.BASE_DIR) / "products" / "lineas"
@@ -109,6 +109,7 @@ def _find_assets(selection: dict):
 
     assets = []
     patterns = ("*.png", "*.jpg", "*.jpeg", "*.webp")
+    processed_images = set()  # Para evitar duplicados
 
     for base in _asset_bases():
         if not base.exists():
@@ -121,12 +122,16 @@ def _find_assets(selection: dict):
                 prompt = _read_prompt_from_dir(d)
                 for pat in patterns:
                     for fp in sorted(d.glob(pat)):
-                        assets.append({
-                            "id": str(uuid.uuid4()),
-                            "thumb_url": _copy_to_media(fp),
-                            "prompt": prompt,
-                            "source_file": str(fp),
-                        })
+                        # Solo procesar cada imagen una vez
+                        img_name = fp.stem  # nombre sin extensión
+                        if img_name not in processed_images:
+                            processed_images.add(img_name)
+                            assets.append({
+                                "id": str(uuid.uuid4()),
+                                "thumb_url": _copy_to_media(fp),
+                                "prompt": prompt,
+                                "source_file": str(fp),
+                            })
     return assets
 
 
@@ -192,6 +197,7 @@ def upload_photo(request):
 
         if not error_msg:
             # Guardar imagen subida
+            image_file.seek(0)  # Resetear el puntero del archivo
             rel_path = default_storage.save(os.path.join("uploads/input", image_file.name), image_file)
             input_path = os.path.join(settings.MEDIA_ROOT, rel_path)
 
