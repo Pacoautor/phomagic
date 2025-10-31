@@ -174,6 +174,9 @@ def upload_photo(request):
         #  - Debe haber asset elegido
         #  - Imagen obligatoria y válida (formato y tamaño)
         chosen_id = request.POST.get("asset_choice") or request.POST.get("asset_id")
+print(f"DEBUG: chosen_id = {chosen_id}")
+print(f"DEBUG: POST data = {request.POST}")
+print(f"DEBUG: Available assets = {[a['id'] for a in assets]}")
         if not chosen_id:
             error_msg = "Debes seleccionar una vista."
         elif "image" not in request.FILES:
