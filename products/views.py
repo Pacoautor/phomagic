@@ -187,14 +187,19 @@ def upload_photo(request):
             else:
                 # Validar dimensiones mínimas (ej. 512x512)
                 try:
+                    image_file.seek(0)  # MOVER AQUÍ AL INICIO
                     im = Image.open(image_file)
                     w, h = im.size
                     if min(w, h) < 512:
                         error_msg = "La imagen es demasiado pequeña. Mínimo 512x512."
-                    im.close()
+                    # NO CERRAR: im.close()
                 except Exception:
                     error_msg = "Archivo de imagen no válido."
 
+        if not error_msg:
+            # Guardar imagen subida
+            image_file.seek(0)  # Resetear de nuevo antes de guardar
+            rel_path = default_storage.save(os.path.join("uploads/input", image_file.name), image_file)
         if not error_msg:
             # Guardar imagen subida
             image_file.seek(0)  # Resetear el puntero del archivo
