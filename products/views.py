@@ -174,9 +174,10 @@ def upload_photo(request):
         #  - Debe haber asset elegido
         #  - Imagen obligatoria y válida (formato y tamaño)
         chosen_id = request.POST.get("asset_choice") or request.POST.get("asset_id")
-print(f"DEBUG: chosen_id = {chosen_id}")
-print(f"DEBUG: POST data = {request.POST}")
-print(f"DEBUG: Available assets = {[a['id'] for a in assets]}")
+        print(f"DEBUG: chosen_id = {chosen_id}")
+        print(f"DEBUG: POST data = {request.POST}")
+        print(f"DEBUG: Available assets = {[a['id'] for a in assets]}")
+        
         if not chosen_id:
             error_msg = "Debes seleccionar una vista."
         elif "image" not in request.FILES:
@@ -202,10 +203,6 @@ print(f"DEBUG: Available assets = {[a['id'] for a in assets]}")
         if not error_msg:
             # Guardar imagen subida
             image_file.seek(0)  # Resetear de nuevo antes de guardar
-            rel_path = default_storage.save(os.path.join("uploads/input", image_file.name), image_file)
-        if not error_msg:
-            # Guardar imagen subida
-            image_file.seek(0)  # Resetear el puntero del archivo
             rel_path = default_storage.save(os.path.join("uploads/input", image_file.name), image_file)
             input_path = os.path.join(settings.MEDIA_ROOT, rel_path)
 
