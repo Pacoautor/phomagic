@@ -203,9 +203,12 @@ def processing(request):
 
     try:
         job_id = request.session.get("job_id")
+        if not job_id:
+            return redirect("upload_photo")
+
         tmp_file = Path(settings.MEDIA_ROOT) / "uploads" / "tmp" / f"{job_id}.json"
         if not tmp_file.exists():
-            return render(request, "error.html", {"error": "No se encontró la tarea guardada."})
+            return redirect("upload_photo")
 
         with open(tmp_file, "r", encoding="utf-8") as f:
             job = json.load(f)
@@ -216,13 +219,13 @@ def processing(request):
         if not os.path.exists(input_path):
             return render(request, "error.html", {"error": "No se encontró la imagen subida."})
 
-        # Convertir la imagen a RGBA PNG antes de enviar
+        # Convertir a RGBA PNG si no lo es
         img = Image.open(input_path)
         if img.mode != "RGBA":
             img = img.convert("RGBA")
-            rgba_path = str(Path(input_path).with_suffix(".png"))
-            img.save(rgba_path, "PNG")
-            input_path = rgba_path
+        rgba_path = str(Path(input_path).with_suffix(".png"))
+        img.save(rgba_path, "PNG")
+        input_path = rgba_path
 
         client = OpenAI(api_key=api_key)
         with open(input_path, "rb") as fin:
@@ -243,6 +246,7 @@ def processing(request):
 
         output_url = f"{settings.MEDIA_URL.rstrip('/')}/uploads/output/{job_id}.png"
 
+        # Guardar resultado para futura visualización
         job["output_url"] = output_url
         with open(tmp_file, "w", encoding="utf-8") as f:
             json.dump(job, f)
@@ -251,8 +255,7 @@ def processing(request):
 
     except Exception as e:
         logger.exception("Error en procesamiento de imagen")
-        return render(request, "error.html", {"error": f"Error al procesar la imagen: {e}"})
-
+        return render(request, "error.html", {"error": f"Ocurrió un error procesando la imagen: {e}"})
 
 def result(request):
     job_id = request.session.get("job_id")

@@ -1,55 +1,32 @@
-<!doctype html><meta charset="utf-8">
-<h1>2) Subir imagen</h1>
+{% extends "base.html" %}
+{% block content %}
+<h2>2) Subir imagen</h2>
 
-{% if selection %}
 <p><strong>Selección:</strong> {{ selection }}</p>
-{% endif %}
 
 {% if error %}
-  <p style="color:#c00"><strong>{{ error }}</strong></p>
+  <div style="color: red;">{{ error }}</div>
 {% endif %}
 
 {% if assets %}
-  <h3>Elige una vista (obligatorio) y sube tu foto</h3>
-  <form method="post" enctype="multipart/form-data">
-    {% csrf_token %}
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;max-width:980px">
-      {% for a in assets %}
-        <label style="border:1px solid #ddd;padding:8px;display:block;text-align:center;cursor:pointer">
-          <img src="{{ a.thumb_url }}" style="max-width:100%;height:120px;object-fit:contain" alt="miniatura">
-          <div style="margin-top:6px">
-            <input type="radio" name="asset_choice" value="{{ a.id }}">
-            usar esta vista
-          </div>
-        </label>
-      {% endfor %}
-    </div>
-
-    {{ form.asset_id }}  {# hidden; lo rellenamos con JS al enviar #}
-
-    <hr>
-    <p><strong>Sube tu imagen:</strong></p>
-    {{ form.image }}
-
-    <div style="margin-top:12px">
-      <button type="submit" onclick="
-        const chosen = document.querySelector('input[name=asset_choice]:checked');
-        if (chosen) document.getElementById('id_asset_id').value = chosen.value;
-      ">Procesar</button>
-    </div>
-  </form>
+  <h3>Selecciona una vista:</h3>
+  <div style="display:flex; flex-wrap:wrap; gap:20px;">
+    {% for asset in assets %}
+      <div style="text-align:center;">
+        <img src="{{ asset.thumb_url }}" width="200" style="border:1px solid #ccc; border-radius:8px; margin-bottom:10px;">
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          <input type="hidden" name="asset_id" value="{{ asset.id }}">
+          <label>Selecciona archivo</label><br>
+          <input type="file" name="image" accept="image/*" required><br><br>
+          <button type="submit">Procesar esta vista</button>
+        </form>
+      </div>
+    {% endfor %}
+  </div>
 {% else %}
-  <p style="color:#666">No se encontraron miniaturas para esta selección.  
-  Añádelas en <code>products/lineas/&lt;Categoria&gt;_&lt;Subcategoría&gt;/</code> con un <code>.docx</code> de prompt.</p>
-
-  <form method="post" enctype="multipart/form-data">
-    {% csrf_token %}
-    {{ form.image }}
-    {{ form.asset_id }}
-    <div style="margin-top:12px">
-      <button type="submit">Procesar</button>
-    </div>
-  </form>
+  <p>No se encontraron miniaturas para esta selección. Añádelas en <code>products/lineas/&lt;Categoría&gt;_&lt;Subcategoría&gt;/</code> con un .docx de prompt.</p>
 {% endif %}
 
-<p style="margin-top:16px"><a href="{% url 'select_category' %}">Volver</a></p>
+<p><a href="{% url 'select_category' %}">Volver</a></p>
+{% endblock %}

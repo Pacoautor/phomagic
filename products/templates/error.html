@@ -1,51 +1,24 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Error - Phomagic</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 50px auto;
-            padding: 20px;
-            text-align: center;
-        }
-        .error-box {
-            background-color: #fff3cd;
-            border: 1px solid #ffc107;
-            border-radius: 5px;
-            padding: 30px;
-            margin: 20px 0;
-        }
-        h1 {
-            color: #856404;
-        }
-        .message {
-            color: #856404;
-            font-size: 18px;
-            margin: 20px 0;
-        }
-        .btn {
-            display: inline-block;
-            padding: 10px 20px;
-            background-color: #007bff;
-            color: white;
-            text-decoration: none;
-            border-radius: 5px;
-            margin-top: 20px;
-        }
-        .btn:hover {
-            background-color: #0056b3;
-        }
-    </style>
-</head>
-<body>
-    <div class="error-box">
-        <h1>⚠️ Error al procesar</h1>
-        <p class="message">{{ message }}</p>
-        <a href="{% url 'home' %}" class="btn">Volver al inicio</a>
+{% extends "base.html" %}
+{% block content %}
+<div style="max-width: 700px; margin: 60px auto; text-align: center; font-family: Arial, sans-serif;">
+
+  <div style="background-color: #fff8e1; border: 1px solid #ffe082; border-radius: 12px; padding: 30px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+    <div style="font-size: 60px; color: #ff9800; margin-bottom: 10px;">⚠️</div>
+    <h2 style="color: #b36b00; margin-bottom: 15px;">Error al procesar</h2>
+
+    {% if error %}
+      <p style="color: #444; font-size: 16px;">{{ error }}</p>
+    {% else %}
+      <p style="color: #444; font-size: 16px;">Ha ocurrido un error inesperado. Por favor, vuelve a intentarlo.</p>
+    {% endif %}
+
+    <div style="margin-top: 25px;">
+      <a href="{% url 'select_category' %}" 
+         style="background-color: #007bff; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold;">
+         Volver al inicio
+      </a>
     </div>
-</body>
-</html>
+  </div>
+
+</div>
+{% endblock %}

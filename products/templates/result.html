@@ -1,13 +1,35 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 {% block content %}
-<h2 class="text-center mb-4">✨ Tu imagen procesada está lista ✨</h2>
+<div style="max-width: 800px; margin: 40px auto; text-align: center; font-family: Arial, sans-serif;">
 
-<div class="card p-4 shadow text-center">
-    <img src="{{ processed_url }}" class="img-fluid mb-3 rounded border" alt="Resultado procesado">
-    <a href="{{ processed_url }}" class="btn btn-primary" download>Descargar Imagen</a>
-</div>
+  <h2 style="color: #222; margin-bottom: 20px;">🎉 Resultado generado</h2>
 
-<div class="text-center mt-4">
-    <a href="/" class="btn btn-outline-secondary">Volver al menú principal</a>
+  {% if output_url %}
+    <div style="background: #f9f9f9; padding: 20px; border-radius: 12px; box-shadow: 0 0 10px rgba(0,0,0,0.1);">
+      <img src="{{ output_url }}" 
+           alt="Resultado" 
+           style="max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 15px;">
+      <p style="color: #555;">Tu imagen ha sido generada correctamente.</p>
+
+      <div style="margin-top: 20px;">
+        <a href="{{ output_url }}" 
+           download 
+           style="background-color: #007bff; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold;">
+           Descargar imagen
+        </a>
+        <a href="{% url 'select_category' %}" 
+           style="background-color: #28a745; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; margin-left: 10px; font-weight: bold;">
+           Volver al inicio
+        </a>
+      </div>
+    </div>
+  {% else %}
+    <p style="color: red;">No se encontró la imagen generada.</p>
+    <a href="{% url 'select_category' %}" 
+       style="display: inline-block; background: #007bff; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none;">
+       Volver al inicio
+    </a>
+  {% endif %}
+
 </div>
 {% endblock %}
