@@ -8,3 +8,4 @@ media/
 .DS_Store
 !products/lineas/ 
 !products/lineas/**/* 
+!products/lineas/** 
