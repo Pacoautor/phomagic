@@ -7,12 +7,12 @@
 
   {% if categorias %}
     <div class="row justify-content-center">
-      {% for categoria in categorias %}
+      {% for c in categorias %}
       <div class="col-6 col-md-3 mb-4">
-        <a href="{% url 'select_view' %}?categoria={{ categoria }}" class="text-decoration-none">
+        <a href="{% url 'select_view' %}?categoria={{ c.nombre }}" class="text-decoration-none">
           <div class="card bg-dark text-white border-light shadow-sm hover-card">
             <div class="card-body">
-              <h5 class="card-title">{{ categoria }}</h5>
+              <h5 class="card-title">{{ c.legible }}</h5>
             </div>
           </div>
         </a>

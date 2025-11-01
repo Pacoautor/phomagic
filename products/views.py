@@ -5,9 +5,6 @@ from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.core.files.storage import default_storage
 
-# ============================================================
-# 🧩 1. SELECCIÓN DE CATEGORÍA
-# ============================================================
 
 def select_category(request):
     """
@@ -17,37 +14,44 @@ def select_category(request):
     if not base_path.exists():
         return render(request, "error.html", {"error": "No se encontró la carpeta 'media/lineas'."})
 
-    categorias = [d.name for d in base_path.iterdir() if d.is_dir()]
+    categorias = []
+    for d in base_path.iterdir():
+        if d.is_dir():
+            categorias.append({
+                "nombre": d.name,
+                "legible": d.name.replace("_", " ").replace("-", " ").capitalize()
+            })
+
     return render(request, "select_category.html", {"categorias": categorias})
 
 
-# ============================================================
-# 🧩 2. SELECCIÓN DE VISTA DENTRO DE UNA CATEGORÍA
-# ============================================================
-
 def select_view(request):
     """
-    Carga las vistas (miniaturas PNG) de una categoría seleccionada.
+    Muestra las miniaturas PNG dentro de una categoría seleccionada.
     """
     categoria = request.GET.get("categoria")
     if not categoria:
         return redirect("select_category")
 
-    request.session["selection"] = categoria
-    category_path = Path(settings.MEDIA_ROOT) / "lineas" / categoria
+    base_path = Path(settings.MEDIA_ROOT) / "lineas" / categoria
+    if not base_path.exists():
+        return render(request, "error.html", {"error": f"No se encontró la categoría '{categoria}'."})
 
-    # Buscar vistas PNG dentro de la categoría
-    vistas = sorted([f.name for f in category_path.glob("*.png")])
+    vistas = sorted([f.name for f in base_path.glob("*.png")])
+    if not vistas:
+        return render(request, "upload_photo.html", {
+            "categoria": categoria,
+            "vistas": [],
+            "error": "No se encontraron vistas en /media/lineas/."
+        })
+
+    request.session["selection"] = categoria
     return render(request, "upload_photo.html", {"categoria": categoria, "vistas": vistas})
 
 
-# ============================================================
-# 🧩 3. SELECCIONAR UNA MINIATURA
-# ============================================================
-
 def set_selected_view(request):
     """
-    Guarda en la sesión la vista seleccionada por el usuario.
+    Guarda la vista seleccionada por el usuario en la sesión.
     """
     selected_view = request.GET.get("view")
     if selected_view:
@@ -56,44 +60,36 @@ def set_selected_view(request):
     return JsonResponse({"status": "error", "message": "Vista no válida"})
 
 
-# ============================================================
-# 🧩 4. SUBIR IMAGEN Y MOSTRAR FORMULARIO DE PROCESAMIENTO
-# ============================================================
-
 def upload_photo(request):
     """
-    Muestra el formulario de subida y procesamiento de imagen.
+    Permite subir y procesar una imagen.
     """
     categoria = request.session.get("selection")
     selected_view = request.session.get("selected_view")
 
     if request.method == "POST":
         uploaded_file = request.FILES.get("file")
-        if not categoria or not selected_view:
+        if not uploaded_file:
             return render(request, "upload_photo.html", {
-                "error": "Selecciona una categoría y una vista antes de subir la imagen.",
+                "error": "No se seleccionó ningún archivo.",
                 "categoria": categoria,
                 "vistas": _get_vistas(categoria)
             })
 
-        if uploaded_file:
-            upload_dir = Path(settings.MEDIA_ROOT) / "uploads"
-            upload_dir.mkdir(parents=True, exist_ok=True)
-            file_path = upload_dir / uploaded_file.name
-            with default_storage.open(str(file_path), 'wb+') as dest:
-                for chunk in uploaded_file.chunks():
-                    dest.write(chunk)
+        upload_dir = Path(settings.MEDIA_ROOT) / "uploads"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        file_path = upload_dir / uploaded_file.name
 
-            request.session["uploaded_file_url"] = f"/media/uploads/{uploaded_file.name}"
-            return redirect("processing")
+        with default_storage.open(str(file_path), 'wb+') as dest:
+            for chunk in uploaded_file.chunks():
+                dest.write(chunk)
 
-    vistas = _get_vistas(categoria) if categoria else []
+        request.session["uploaded_file_url"] = f"/media/uploads/{uploaded_file.name}"
+        return redirect("processing")
+
+    vistas = _get_vistas(categoria)
     return render(request, "upload_photo.html", {"categoria": categoria, "vistas": vistas})
 
-
-# ============================================================
-# 🧩 5. PROCESAMIENTO FINAL
-# ============================================================
 
 def processing(request):
     categoria = request.session.get("selection")
@@ -110,18 +106,10 @@ def processing(request):
     })
 
 
-# ============================================================
-# 🧩 6. FUNCIÓN AUXILIAR
-# ============================================================
-
 def _get_vistas(categoria):
-    """
-    Devuelve la lista de vistas PNG disponibles en una categoría.
-    """
     if not categoria:
         return []
-    category_path = Path(settings.MEDIA_ROOT) / "lineas" / categoria
-    if not category_path.exists():
+    path = Path(settings.MEDIA_ROOT) / "lineas" / categoria
+    if not path.exists():
         return []
-    return sorted([f.name for f in category_path.glob("*.png")])
-
+    return sorted([f.name for f in path.glob("*.png")])
