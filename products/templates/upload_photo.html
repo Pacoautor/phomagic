@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container py-5 text-center">
+  <h2 class="mb-4">Sube tu imagen</h2>
+
+  {% if messages %}
+  <div class="alert alert-warning">
+    {% for message in messages %}
+      {{ message }}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <form method="POST" enctype="multipart/form-data" class="mt-4">
+    {% csrf_token %}
+    <div class="mb-3">
+      <label for="image" class="form-label">Selecciona una imagen</label>
+      <input type="file" name="image" id="image" class="form-control" required>
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-lg mt-3">
+      Subir y procesar
+    </button>
+  </form>
+
+  <hr class="my-5">
+
+  <h5>Vista seleccionada: {{ selected_view|default:"Ninguna" }}</h5>
+  <p class="text-muted">Cuando subas la imagen se procesará con la vista elegida.</p>
+</div>
+{% endblock %}
