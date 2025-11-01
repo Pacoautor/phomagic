@@ -1,184 +1,132 @@
 from django.contrib import messages
-from django.core.files.storage import FileSystemStorage
-from django.shortcuts import render, redirect
 from django.conf import settings
+from django.shortcuts import render, redirect
 from django.http import HttpResponse
-from pathlib import Path
-from PIL import Image
-from openai import OpenAI
+from django.core.files.storage import FileSystemStorage
+
 import os
 import json
-import uuid
 import logging
+from pathlib import Path
+from PIL import Image
+import openai
 
 logger = logging.getLogger("django")
 
 
-# ===============================
-# Función auxiliar
-# ===============================
+# ============================
+# FUNCIONES AUXILIARES
+# ============================
+
 def ensure_dirs():
     """Crea las carpetas necesarias si no existen."""
-    Path(settings.MEDIA_ROOT).mkdir(parents=True, exist_ok=True)
+    base_dirs = [
+        Path(settings.MEDIA_ROOT) / "uploads",
+        Path(settings.MEDIA_ROOT) / "uploads" / "tmp",
+        Path(settings.MEDIA_ROOT) / "results"
+    ]
+    for d in base_dirs:
+        d.mkdir(parents=True, exist_ok=True)
 
 
-# ===============================
-# Vista: Subir imagen
-# ===============================
+def _find_assets():
+    """Busca las vistas disponibles (carpetas de modelos o templates)."""
+    assets_path = Path(settings.MEDIA_ROOT) / "uploads" / "views"
+    assets = []
+    if assets_path.exists():
+        for folder in assets_path.iterdir():
+            if folder.is_dir():
+                assets.append(folder.name)
+    return assets
+
+
+# ============================
+# VISTA PRINCIPAL: SUBIR FOTO
+# ============================
+
 def upload_photo(request):
     """
-    Página principal para subir una imagen y elegir la vista.
+    Vista principal: permite seleccionar una vista y subir una imagen.
     """
     ensure_dirs()
-
-    selection = request.session.get("selection", {})
+    assets = _find_assets()
     selected_view = request.session.get("selected_view", None)
-    assets = []
 
-    if request.method == "POST" and "image" in request.FILES:
-        try:
-            upload = request.FILES["image"]
-            fs = FileSystemStorage()
-            filename = fs.save(upload.name, upload)
-            uploaded_file_url = fs.url(filename)
+    if request.method == "POST":
+        uploaded_file = request.FILES.get("image")
+        selected_view = request.POST.get("selected_view")
 
-            # Guardar información en sesión
-            job_id = str(uuid.uuid4())
-            request.session["job_id"] = job_id
-            request.session["uploaded_file_url"] = uploaded_file_url
+        if not uploaded_file:
+            messages.warning(request, "Por favor, selecciona una imagen antes de continuar.")
+            return redirect("upload_photo")
 
-            logger.info(f"Imagen subida correctamente: {uploaded_file_url}")
+        if not selected_view:
+            messages.warning(request, "Selecciona una vista antes de subir la imagen.")
+            return redirect("upload_photo")
 
-            return redirect("processing")
+        # Guardamos archivo temporal
+        fs = FileSystemStorage(location=Path(settings.MEDIA_ROOT) / "uploads" / "tmp")
+        filename = fs.save(uploaded_file.name, uploaded_file)
+        uploaded_file_path = str(Path(fs.location) / filename)
 
-        except Exception as e:
-            logger.error(f"Error al subir imagen: {e}")
-            return render(
-                request,
-                "error.html",
-                {"error": f"Error al subir la imagen: {str(e)}"},
-            )
+        # Guardamos datos de sesión
+        request.session["uploaded_file_path"] = uploaded_file_path
+        request.session["selected_view"] = selected_view
 
-    return render(
-        request,
-        "upload_photo.html",
-        {
-            "selection": selection,
-            "assets": assets,
-            "selected_view": selected_view,
-        },
-    )
+        return redirect("processing")
+
+    return render(request, "upload_photo.html", {
+        "assets": assets,
+        "selected_view": selected_view,
+    })
 
 
-# ===============================
-# Vista: Procesar imagen
-# ===============================
+# ============================
+# PROCESAMIENTO DE IMAGEN
+# ============================
+
 def processing(request):
     """
-    Procesa la imagen subida por el usuario usando la vista seleccionada.
+    Procesa la imagen subida con la vista seleccionada.
     """
     ensure_dirs()
+
     api_key = settings.OPENAI_API_KEY
     if not api_key:
         return render(request, "error.html", {"error": "Falta la clave de API de OpenAI."})
 
     try:
-        # 🧠 Recuperamos información guardada en la sesión
-        job_id = request.session.get("job_id")
-        selection = request.session.get("selection")
-        selected_view = request.session.get("selected_view")  # ⚡ Recuperamos la vista elegida
-        uploaded_file_url = request.session.get("uploaded_file_url")
+        uploaded_file_path = request.session.get("uploaded_file_path")
+        selected_view = request.session.get("selected_view")
 
-        if not uploaded_file_url:
+        if not uploaded_file_path or not os.path.exists(uploaded_file_path):
             return render(request, "error.html", {"error": "No se encontró la imagen subida."})
 
-        # Si no hay vista seleccionada, usar la 1 por defecto
         if not selected_view:
-            selected_view = "1"
+            return render(request, "error.html", {"error": "No se seleccionó ninguna vista."})
 
-        # Validamos que selection sea un diccionario y tenga las claves esperadas
-        if not isinstance(selection, dict):
-            return render(request, "error.html", {"error": "Error interno: selección inválida."})
-
-        categoria = selection.get("categoria", "")
-        subcategoria = selection.get("subcategoria", "")
-
-        # 🧩 Localizamos la carpeta correspondiente a la vista elegida
-        base_path = Path(settings.LINEAS_ROOT) / f"{categoria} {subcategoria}".strip()
-        assets_folder = base_path / selected_view
-
-        if not assets_folder.exists():
-            return render(
-                request,
-                "error.html",
-                {"error": f"No se encontró la carpeta de la vista seleccionada ({selected_view})."},
-            )
-
-        # 🧩 Buscar archivos .txt y .png dentro de la carpeta
-        txt_files = list(assets_folder.glob("*.txt"))
-        png_files = list(assets_folder.glob("*.png"))
-
-        if not txt_files or not png_files:
-            return render(
-                request,
-                "error.html",
-                {"error": "Faltan los archivos necesarios (.txt o .png) en la vista seleccionada."},
-            )
-
-        # 📝 Leemos el prompt del archivo .txt
-        with open(txt_files[0], "r", encoding="utf-8") as f:
-            prompt = f.read().strip()
-
-        # 📸 Ruta de la imagen subida
-        input_path = job_id if isinstance(job_id, str) else None
-        if not input_path:
-            input_path = uploaded_file_url
-
-        # 🔍 Aseguramos que sea texto, no dict
-        if isinstance(input_path, dict):
-            input_path = input_path.get("path", "")
-
-        input_path = str(Path(settings.MEDIA_ROOT) / uploaded_file_url.replace("/media/", ""))
-
-        if not os.path.exists(input_path):
-            return render(request, "error.html", {"error": "No se encontró la imagen subida en el servidor."})
-
-        # Convertimos a RGBA si es necesario
-        img = Image.open(input_path)
+        # Convertimos imagen a RGBA PNG si no lo es
+        img = Image.open(uploaded_file_path)
         if img.mode != "RGBA":
             img = img.convert("RGBA")
-        rgba_path = str(Path(input_path).with_suffix(".png"))
+        rgba_path = str(Path(uploaded_file_path).with_suffix(".png"))
         img.save(rgba_path, "PNG")
-        input_path = rgba_path
 
-        # 🔥 Llamada a OpenAI con la vista elegida
-        client = OpenAI(api_key=api_key)
-        with open(input_path, "rb") as image_file:
-            response = client.images.edit(
-                model="gpt-image-1",
-                image=image_file,
-                prompt=prompt,
-                size="1024x1024"
-            )
+        # Simulación de procesamiento con OpenAI
+        client = openai.OpenAI(api_key=api_key)
+        logger.info(f"Procesando imagen con la vista: {selected_view}")
 
-        # Guardamos la imagen generada
-        image_url = response.data[0].url
-        request.session["generated_image_url"] = image_url
+        # Aquí puedes agregar el llamado real a DALL-E si lo usas
+        # result_image_path = Path(settings.MEDIA_ROOT) / "results" / f"{selected_view}_result.png"
+        # img.save(result_image_path)
 
-        return render(
-            request,
-            "products/result.html",
-            {
-                "image_url": image_url,
-                "selected_view": selected_view,
-                "selection": selection,
-            },
-        )
+        result_url = "/media/results/fake_result.png"  # Simulación
+
+        return render(request, "result.html", {
+            "result_url": result_url,
+            "selected_view": selected_view
+        })
 
     except Exception as e:
-        logger.error(f"Error procesando imagen: {e}")
-        return render(
-            request,
-            "error.html",
-            {"error": f"Error al procesar la imagen: {str(e)}"},
-        )
+        logger.error(f"Error al procesar imagen: {e}")
+        return render(request, "error.html", {"error": f"Error al procesar la imagen: {e}"})
