@@ -174,11 +174,12 @@ def upload_photo(request):
 
     assets = _find_assets(selection)
 
-    return render(request, "upload_photo.html", {
-        "selection": selection,
-        "assets": assets,
-        "selected_view": selected_view
-    })
+    return render(request, "products/upload_photo.html", {
+    "selection": selection,
+    "assets": assets,
+    "selected_view": selected_view
+})
+
 def processing(request):
     """
     Procesa la imagen subida por el usuario usando la vista seleccionada.
