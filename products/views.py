@@ -14,15 +14,12 @@ import openai
 logger = logging.getLogger("django")
 
 
-# ============================
-# FUNCIONES AUXILIARES
-# ============================
-
 def ensure_dirs():
     """Crea las carpetas necesarias si no existen."""
     base_dirs = [
         Path(settings.MEDIA_ROOT) / "uploads",
         Path(settings.MEDIA_ROOT) / "uploads" / "tmp",
+        Path(settings.MEDIA_ROOT) / "uploads" / "views",
         Path(settings.MEDIA_ROOT) / "results"
     ]
     for d in base_dirs:
@@ -30,24 +27,26 @@ def ensure_dirs():
 
 
 def _find_assets():
-    """Busca las vistas disponibles (carpetas de modelos o templates)."""
+    """Busca las vistas disponibles con miniaturas."""
     assets_path = Path(settings.MEDIA_ROOT) / "uploads" / "views"
     assets = []
     if assets_path.exists():
         for folder in assets_path.iterdir():
             if folder.is_dir():
-                assets.append(folder.name)
+                thumb = None
+                for f in folder.iterdir():
+                    if f.suffix.lower() in [".jpg", ".jpeg", ".png", ".webp"]:
+                        thumb = f"{settings.MEDIA_URL}uploads/views/{folder.name}/{f.name}"
+                        break
+                assets.append({
+                    "name": folder.name,
+                    "thumb": thumb or f"{settings.STATIC_URL}img/no-thumb.png"
+                })
     return assets
 
 
-# ============================
-# VISTA PRINCIPAL: SUBIR FOTO
-# ============================
-
 def upload_photo(request):
-    """
-    Vista principal: permite seleccionar una vista y subir una imagen.
-    """
+    """Vista principal: muestra selector de vistas y subida de imagen."""
     ensure_dirs()
     assets = _find_assets()
     selected_view = request.session.get("selected_view", None)
@@ -64,12 +63,10 @@ def upload_photo(request):
             messages.warning(request, "Selecciona una vista antes de subir la imagen.")
             return redirect("upload_photo")
 
-        # Guardamos archivo temporal
         fs = FileSystemStorage(location=Path(settings.MEDIA_ROOT) / "uploads" / "tmp")
         filename = fs.save(uploaded_file.name, uploaded_file)
         uploaded_file_path = str(Path(fs.location) / filename)
 
-        # Guardamos datos de sesión
         request.session["uploaded_file_path"] = uploaded_file_path
         request.session["selected_view"] = selected_view
 
@@ -81,16 +78,9 @@ def upload_photo(request):
     })
 
 
-# ============================
-# PROCESAMIENTO DE IMAGEN
-# ============================
-
 def processing(request):
-    """
-    Procesa la imagen subida con la vista seleccionada.
-    """
+    """Procesa la imagen subida con la vista seleccionada."""
     ensure_dirs()
-
     api_key = settings.OPENAI_API_KEY
     if not api_key:
         return render(request, "error.html", {"error": "Falta la clave de API de OpenAI."})
@@ -101,26 +91,18 @@ def processing(request):
 
         if not uploaded_file_path or not os.path.exists(uploaded_file_path):
             return render(request, "error.html", {"error": "No se encontró la imagen subida."})
-
         if not selected_view:
             return render(request, "error.html", {"error": "No se seleccionó ninguna vista."})
 
-        # Convertimos imagen a RGBA PNG si no lo es
         img = Image.open(uploaded_file_path)
         if img.mode != "RGBA":
             img = img.convert("RGBA")
         rgba_path = str(Path(uploaded_file_path).with_suffix(".png"))
         img.save(rgba_path, "PNG")
 
-        # Simulación de procesamiento con OpenAI
-        client = openai.OpenAI(api_key=api_key)
         logger.info(f"Procesando imagen con la vista: {selected_view}")
 
-        # Aquí puedes agregar el llamado real a DALL-E si lo usas
-        # result_image_path = Path(settings.MEDIA_ROOT) / "results" / f"{selected_view}_result.png"
-        # img.save(result_image_path)
-
-        result_url = "/media/results/fake_result.png"  # Simulación
+        result_url = "/media/results/fake_result.png"
 
         return render(request, "result.html", {
             "result_url": result_url,
