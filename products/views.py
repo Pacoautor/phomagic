@@ -141,85 +141,90 @@ def select_category(request):
 
 
 def upload_photo(request):
-    ensure_dirs()
+    """
+    Página donde el usuario sube la imagen después de elegir la vista (1, 2, 3...)
+    """
     selection = request.session.get("selection")
+
     if not selection:
         return redirect("select_category")
 
-    assets = _find_assets(selection)
-    form = UploadForm(request.POST or None, request.FILES or None)
-    error_msg = ""
-
+    # ⚡️ Si el usuario ha seleccionado una vista, guardarla en sesión
     if request.method == "POST":
-        chosen_id = request.POST.get("asset_choice") or request.POST.get("asset_id")
-        if not chosen_id:
-            error_msg = "Debes seleccionar una vista."
-        elif "image" not in request.FILES:
-            error_msg = "Debes subir una imagen."
-        else:
-            image_file = request.FILES["image"]
-            try:
-                im = Image.open(image_file)
-                w, h = im.size
-                if min(w, h) < 512:
-                    error_msg = "La imagen es demasiado pequeña (mínimo 512x512)."
-            except Exception:
-                error_msg = "Archivo de imagen no válido."
+        selected_view = request.POST.get("selected_view")
+        if selected_view:
+            request.session["selected_view"] = selected_view  # <- Guardamos la vista elegida
+            return redirect("upload_photo")
 
-        if not error_msg:
-            image_file.seek(0)
-            rel_path = default_storage.save(os.path.join("uploads/input", image_file.name), image_file)
-            input_path = os.path.join(settings.MEDIA_ROOT, rel_path)
+        # Si el usuario sube la imagen
+        if "image" in request.FILES:
+            image = request.FILES["image"]
+            fs = FileSystemStorage()
+            filename = fs.save(image.name, image)
+            uploaded_file_url = fs.url(filename)
+            request.session["uploaded_file_url"] = uploaded_file_url
+            return redirect("processing")
 
-            chosen = next((a for a in assets if a["id"] == chosen_id), None)
-            if not chosen:
-                error_msg = "La vista elegida no es válida."
-            else:
-                job_id = str(uuid.uuid4())
-                tmp_file = Path(settings.MEDIA_ROOT) / "uploads" / "tmp" / f"{job_id}.json"
-                tmp_file.parent.mkdir(parents=True, exist_ok=True)
-                with open(tmp_file, "w", encoding="utf-8") as f:
-                    json.dump({
-                        "input_path": input_path,
-                        "prompt": chosen["prompt"]
-                    }, f)
-                request.session["job_id"] = job_id
-                request.session.modified = True
-                return redirect("processing")
+    # ⚡️ Si no hay una vista seleccionada, mostramos aviso
+    selected_view = request.session.get("selected_view", None)
+    if not selected_view:
+        messages.warning(request, "Selecciona una vista antes de subir la imagen.")
 
-    return render(request, "products/upload_photo.html", {
-        "form": form,
+    assets = _find_assets(selection)
+
+    return render(request, "upload_photo.html", {
         "selection": selection,
         "assets": assets,
-        "error": error_msg,
+        "selected_view": selected_view
     })
-
-
 def processing(request):
+    """
+    Procesa la imagen subida por el usuario usando la vista seleccionada.
+    """
     ensure_dirs()
     api_key = settings.OPENAI_API_KEY
     if not api_key:
         return render(request, "error.html", {"error": "Falta la clave de API de OpenAI."})
 
     try:
+        # 🧠 Recuperamos información guardada en la sesión
         job_id = request.session.get("job_id")
-        if not job_id:
-            return redirect("upload_photo")
+        selection = request.session.get("selection")
+        selected_view = request.session.get("selected_view")  # ⚡ Recuperamos la vista elegida
+        uploaded_file_url = request.session.get("uploaded_file_url")
 
-        tmp_file = Path(settings.MEDIA_ROOT) / "uploads" / "tmp" / f"{job_id}.json"
-        if not tmp_file.exists():
-            return redirect("upload_photo")
-
-        with open(tmp_file, "r", encoding="utf-8") as f:
-            job = json.load(f)
-
-        input_path = job.get("input_path")
-        prompt = job.get("prompt")
-
-        if not os.path.exists(input_path):
+        if not uploaded_file_url:
             return render(request, "error.html", {"error": "No se encontró la imagen subida."})
 
-        # Convertir a RGBA PNG si no lo es
+        # Si no hay vista seleccionada, usar la 1 por defecto
+        if not selected_view:
+            selected_view = "1"
+
+        # Localizamos la carpeta correspondiente a la vista elegida
+        base_path = Path(settings.LINEAS_ROOT) / selection
+        assets_folder = base_path / selected_view
+
+        if not assets_folder.exists():
+            return render(request, "error.html", {"error": f"No se encontró la carpeta de la vista seleccionada ({selected_view})."})
+
+        # 🧩 Buscar archivos .txt y .png dentro de la carpeta
+        txt_files = list(assets_folder.glob("*.txt"))
+        png_files = list(assets_folder.glob("*.png"))
+
+        if not txt_files or not png_files:
+            return render(request, "error.html", {"error": "Faltan los archivos necesarios (.txt o .png) en la vista seleccionada."})
+
+        # Leemos el prompt del archivo .txt
+        with open(txt_files[0], "r", encoding="utf-8") as f:
+            prompt = f.read().strip()
+
+        # 📸 Ruta de la imagen subida
+        input_path = str(Path(settings.MEDIA_ROOT) / uploaded_file_url.replace("/media/", ""))
+
+        if not os.path.exists(input_path):
+            return render(request, "error.html", {"error": "No se encontró la imagen subida en el servidor."})
+
+        # Convertimos a RGBA si es necesario
         img = Image.open(input_path)
         if img.mode != "RGBA":
             img = img.convert("RGBA")
@@ -227,35 +232,28 @@ def processing(request):
         img.save(rgba_path, "PNG")
         input_path = rgba_path
 
+        # 🔥 Llamada a OpenAI con la vista elegida
         client = OpenAI(api_key=api_key)
-        with open(input_path, "rb") as fin:
-            result = client.images.edit(
+        with open(input_path, "rb") as image_file:
+            response = client.images.edit(
                 model="gpt-image-1",
-                image=fin,
+                image=image_file,
                 prompt=prompt,
                 size="1024x1024"
             )
 
-        image_base64 = result.data[0].b64_json
-        output_bytes = base64.b64decode(image_base64)
+        # Guardamos la imagen generada
+        image_url = response.data[0].url
+        request.session["generated_image_url"] = image_url
 
-        output_path = Path(settings.MEDIA_ROOT) / "uploads" / "output" / f"{job_id}.png"
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, "wb") as fout:
-            fout.write(output_bytes)
-
-        output_url = f"{settings.MEDIA_URL.rstrip('/')}/uploads/output/{job_id}.png"
-
-        # Guardar resultado para futura visualización
-        job["output_url"] = output_url
-        with open(tmp_file, "w", encoding="utf-8") as f:
-            json.dump(job, f)
-
-        return render(request, "products/result.html", {"output_url": output_url})
+        return render(request, "result.html", {
+            "image_url": image_url,
+            "selected_view": selected_view,
+            "selection": selection
+        })
 
     except Exception as e:
-        logger.exception("Error en procesamiento de imagen")
-        return render(request, "error.html", {"error": f"Ocurrió un error procesando la imagen: {e}"})
+        return render(request, "error.html", {"error": f"Error al procesar la imagen: {str(e)}"})
 
 def result(request):
     job_id = request.session.get("job_id")
