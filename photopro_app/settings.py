@@ -84,8 +84,9 @@ for sub in ("uploads/input", "uploads/output", "uploads/tmp", "lineas"):
     (MEDIA_ROOT / sub).mkdir(parents=True, exist_ok=True)
 
 # === Carpetas de trabajo ===
-MEDIA_URL = "/media/"
-MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", Path(BASE_DIR) / "media"))
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+LINEAS_ROOT = MEDIA_ROOT / 'lineas'
 
 # Dónde estarán las 'líneas' en Render (disco persistente)
 LINEAS_ROOT = Path(os.environ.get("LINEAS_ROOT", "/data/lineas"))
