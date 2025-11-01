@@ -1,3 +1,78 @@
+from django.contrib import messages
+from django.core.files.storage import FileSystemStorage
+from django.shortcuts import render, redirect
+from django.conf import settings
+from django.http import HttpResponse
+from pathlib import Path
+from PIL import Image
+from openai import OpenAI
+import os
+import json
+import uuid
+import logging
+
+logger = logging.getLogger("django")
+
+
+# ===============================
+# Función auxiliar
+# ===============================
+def ensure_dirs():
+    """Crea las carpetas necesarias si no existen."""
+    Path(settings.MEDIA_ROOT).mkdir(parents=True, exist_ok=True)
+
+
+# ===============================
+# Vista: Subir imagen
+# ===============================
+def upload_photo(request):
+    """
+    Página principal para subir una imagen y elegir la vista.
+    """
+    ensure_dirs()
+
+    selection = request.session.get("selection", {})
+    selected_view = request.session.get("selected_view", None)
+    assets = []
+
+    if request.method == "POST" and "image" in request.FILES:
+        try:
+            upload = request.FILES["image"]
+            fs = FileSystemStorage()
+            filename = fs.save(upload.name, upload)
+            uploaded_file_url = fs.url(filename)
+
+            # Guardar información en sesión
+            job_id = str(uuid.uuid4())
+            request.session["job_id"] = job_id
+            request.session["uploaded_file_url"] = uploaded_file_url
+
+            logger.info(f"Imagen subida correctamente: {uploaded_file_url}")
+
+            return redirect("processing")
+
+        except Exception as e:
+            logger.error(f"Error al subir imagen: {e}")
+            return render(
+                request,
+                "error.html",
+                {"error": f"Error al subir la imagen: {str(e)}"},
+            )
+
+    return render(
+        request,
+        "upload_photo.html",
+        {
+            "selection": selection,
+            "assets": assets,
+            "selected_view": selected_view,
+        },
+    )
+
+
+# ===============================
+# Vista: Procesar imagen
+# ===============================
 def processing(request):
     """
     Procesa la imagen subida por el usuario usando la vista seleccionada.
