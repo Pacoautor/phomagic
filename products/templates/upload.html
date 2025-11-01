@@ -1,19 +1,51 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
+{% load static %}
+
 {% block content %}
-<h3 class="text-center mb-4">📤 Sube tu imagen para la vista "{{ view.name }}"</h3>
+<div class="container py-5 text-center">
+  <h2 class="mb-4 text-white">Sube tu imagen</h2>
+  <p class="text-muted">Selecciona una vista y una imagen para procesar.</p>
 
-<div class="card p-4 shadow">
-    {% if error %}
-        <div class="alert alert-danger">{{ error }}</div>
+  {% if messages %}
+  <div class="alert alert-warning">
+    {% for message in messages %}
+      {{ message }}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <form method="POST" enctype="multipart/form-data" class="mt-4">
+    {% csrf_token %}
+
+    {% if assets %}
+      <h5 class="text-white mb-3">Selecciona una vista:</h5>
+      <div class="row justify-content-center mb-4">
+        {% for asset in assets %}
+        <div class="col-md-3 col-sm-4 col-6 mb-3">
+          <label class="d-block card bg-dark border-secondary text-white">
+            <input type="radio" name="selected_view" value="{{ asset.name }}" class="form-check-input position-absolute m-2" {% if asset.name == selected_view %}checked{% endif %}>
+            <img src="{{ asset.thumb }}" class="card-img-top rounded" alt="{{ asset.name }}">
+            <div class="card-body p-2">
+              <small>{{ asset.name|capfirst }}</small>
+            </div>
+          </label>
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="alert alert-warning">⚠️ No se encontraron vistas disponibles.</div>
     {% endif %}
-    <form method="POST" enctype="multipart/form-data" class="text-center">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit" class="btn btn-success mt-3">Procesar Imagen</button>
-    </form>
-</div>
 
-<div class="text-center mt-4">
-    <a href="/" class="btn btn-outline-secondary">Volver al inicio</a>
+    <div class="mb-3">
+      <label for="image" class="form-label text-white">Selecciona una imagen</label>
+      <input type="file" name="image" id="image" class="form-control" required>
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-lg mt-3">Subir y procesar</button>
+  </form>
+
+  <hr class="my-5">
+
+  <h5 class="text-white">Vista seleccionada: {{ selected_view|default:"Ninguna" }}</h5>
 </div>
 {% endblock %}

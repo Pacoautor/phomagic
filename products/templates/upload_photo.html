@@ -3,7 +3,8 @@
 
 {% block content %}
 <div class="container py-5 text-center">
-  <h2 class="mb-4">Sube tu imagen</h2>
+  <h2 class="mb-4 text-white">Sube tu imagen</h2>
+  <p class="text-muted">Selecciona una categoría, una vista y tu imagen para procesar.</p>
 
   {% if messages %}
   <div class="alert alert-warning">
@@ -13,21 +14,43 @@
   </div>
   {% endif %}
 
-  <form method="POST" enctype="multipart/form-data" class="mt-4">
+  <form method="POST" enctype="multipart/form-data">
     {% csrf_token %}
+
+    {% if categorias %}
+      {% for categoria in categorias %}
+        <h4 class="text-white mt-4 mb-3">{{ categoria.categoria }}</h4>
+        <div class="row justify-content-center mb-4">
+          {% for vista in categoria.vistas %}
+          <div class="col-md-3 col-sm-4 col-6 mb-3">
+            <label class="card bg-dark border-secondary text-white">
+              <input type="radio" name="selected_category" value="{{ categoria.categoria }}" hidden>
+              <input type="radio" name="selected_view" value="{{ vista.nombre }}" hidden {% if vista.nombre == selected_view %}checked{% endif %}>
+              <img src="{{ vista.thumb }}" class="card-img-top rounded" alt="{{ vista.nombre }}">
+              <div class="card-body p-2">
+                <small>{{ vista.nombre|capfirst }}</small>
+              </div>
+            </label>
+          </div>
+          {% endfor %}
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="alert alert-warning">⚠️ No se encontraron categorías ni vistas en /media/lineas/</div>
+    {% endif %}
+
     <div class="mb-3">
-      <label for="image" class="form-label">Selecciona una imagen</label>
+      <label for="image" class="form-label text-white">Selecciona una imagen</label>
       <input type="file" name="image" id="image" class="form-control" required>
     </div>
 
-    <button type="submit" class="btn btn-primary btn-lg mt-3">
-      Subir y procesar
-    </button>
+    <button type="submit" class="btn btn-primary btn-lg mt-3">Subir y procesar</button>
   </form>
 
   <hr class="my-5">
-
-  <h5>Vista seleccionada: {{ selected_view|default:"Ninguna" }}</h5>
-  <p class="text-muted">Cuando subas la imagen se procesará con la vista elegida.</p>
+  <h5 class="text-white">
+    Categoría seleccionada: {{ selected_category|default:"Ninguna" }}<br>
+    Vista seleccionada: {{ selected_view|default:"Ninguna" }}
+  </h5>
 </div>
 {% endblock %}
