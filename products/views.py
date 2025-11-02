@@ -1,15 +1,22 @@
 import os
+from pathlib import Path
 from django.conf import settings
-from django.shortcuts import render
+from django.shortcuts import render, redirect
+from django.http import JsonResponse
+from django.core.files.storage import default_storage
+
 
 def select_category(request):
-    base_path = os.path.join(settings.BASE_DIR, 'media', 'lineas')
+    """
+    Muestra las categorías principales en /media/lineas/.
+    """
+    base_path = Path(settings.BASE_DIR) / "media" / "lineas"
     categorias = []
 
-    if os.path.exists(base_path):
+    if base_path.exists():
         for nombre in sorted(os.listdir(base_path)):
-            ruta = os.path.join(base_path, nombre)
-            if os.path.isdir(ruta):
+            ruta = base_path / nombre
+            if ruta.is_dir():
                 categorias.append({
                     "nombre": nombre,
                     "legible": nombre.replace("_", " ").replace("-", " ").capitalize()
@@ -18,23 +25,23 @@ def select_category(request):
     return render(request, "select_category.html", {"categorias": categorias})
 
 
-
-
-
-
 def select_view(request):
     """
-    Muestra las miniaturas PNG dentro de una categoría seleccionada.
+    Muestra las subcategorías y vistas (miniaturas) de una categoría seleccionada.
     """
     categoria = request.GET.get("categoria")
     if not categoria:
         return redirect("select_category")
 
-    base_path = Path(settings.MEDIA_ROOT) / "lineas" / categoria
+    base_path = Path(settings.BASE_DIR) / "media" / "lineas" / categoria
     if not base_path.exists():
-        return render(request, "error.html", {"error": f"No se encontró la categoría '{categoria}'."})
+        return render(request, "upload_photo.html", {
+            "categoria": categoria,
+            "vistas": [],
+            "error": f"No se encontró la categoría '{categoria}'."
+        })
 
-    vistas = sorted([f.name for f in base_path.glob("*.png")])
+    vistas = sorted([f.name for f in base_path.glob("**/*.png")])
     if not vistas:
         return render(request, "upload_photo.html", {
             "categoria": categoria,
@@ -104,9 +111,12 @@ def processing(request):
 
 
 def _get_vistas(categoria):
+    """
+    Devuelve todas las vistas (.png) dentro de una categoría o subcategoría.
+    """
     if not categoria:
         return []
-    path = Path(settings.MEDIA_ROOT) / "lineas" / categoria
+    path = Path(settings.BASE_DIR) / "media" / "lineas" / categoria
     if not path.exists():
         return []
-    return sorted([f.name for f in path.glob("*.png")])
+    return sorted([f.name for f in path.glob("**/*.png")])
