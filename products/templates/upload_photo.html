@@ -3,70 +3,52 @@
 
 {% block content %}
 <div class="container py-5 text-center">
-  <h2 class="mb-4 text-white">Sube tu imagen</h2>
-  <p class="text-muted">Selecciona una categoría, una vista y tu imagen para procesar.</p>
+  <h2 class="mb-4 text-white">Selecciona tu vista</h2>
+  <p class="text-muted">Escoge una vista y sube tu imagen para procesarla.</p>
 
-  {% if messages %}
-  <div class="alert alert-warning">
-    {% for message in messages %}
-      {{ message }}
-    {% endfor %}
-  </div>
+  {% if error %}
+    <div class="alert alert-warning">{{ error }}</div>
   {% endif %}
 
-  <form method="POST" enctype="multipart/form-data">
-    {% csrf_token %}
-
-    {% if categorias %}
-      {% for categoria in categorias %}
-        <h4 class="text-white mt-4 mb-3">{{ categoria.categoria }}</h4>
-        <div class="row justify-content-center mb-4">
-          {% for vista in categoria.vistas %}
-          <div class="col-md-3 col-sm-4 col-6 mb-3">
-            <label class="card bg-dark border-secondary text-white">
-              <input type="radio" name="selected_category" value="{{ categoria.categoria }}" hidden>
-              <input type="radio" name="selected_view" value="{{ vista.nombre }}" hidden {% if vista.nombre == selected_view %}checked{% endif %}>
-              <img src="{{ vista.thumb }}" class="card-img-top rounded" alt="{{ vista.nombre }}">
-              <div class="card-body p-2">
-                <small>{{ vista.nombre|capfirst }}</small>
-              </div>
-            </label>
+  {% if vistas %}
+    <div class="row justify-content-center mb-4">
+      {% for vista in vistas %}
+      <div class="col-md-3 col-sm-4 col-6 mb-3">
+        <div class="card bg-dark border-secondary text-white h-100">
+          <img src="/media/lineas/{{ categoria }}/{{ vista }}" class="card-img-top rounded" alt="{{ vista }}">
+          <div class="card-body p-2">
+            <button type="button" class="btn btn-outline-light btn-sm" onclick="selectView('{{ vista }}')">
+              Seleccionar
+            </button>
           </div>
-          {% endfor %}
         </div>
+      </div>
       {% endfor %}
-    {% else %}
-      <div class="alert alert-warning">⚠️ No se encontraron categorías ni vistas en /media/lineas/</div>
-    {% endif %}
-
-    <div class="mb-3">
-      <label for="image" class="form-label text-white">Selecciona una imagen</label>
-      <input type="file" name="image" id="image" class="form-control" required>
     </div>
+  {% else %}
+    <div class="alert alert-warning">⚠️ No se encontraron vistas dentro de la categoría seleccionada.</div>
+  {% endif %}
 
-    <button type="submit" class="btn btn-primary btn-lg mt-3">Subir y procesar</button>
+  <form method="POST" enctype="multipart/form-data" class="mt-4">
+    {% csrf_token %}
+    <div class="mb-3">
+      <label for="image" class="form-label text-white">Selecciona tu imagen</label>
+      <input type="file" name="file" id="image" class="form-control" required>
+    </div>
+    <button type="submit" class="btn btn-primary btn-lg">Subir y procesar</button>
   </form>
-
-  <hr class="my-5">
-  <h5 class="text-white">
-    Categoría seleccionada: {{ selected_category|default:"Ninguna" }}<br>
-    Vista seleccionada: {{ selected_view|default:"Ninguna" }}
-  </h5>
 </div>
-{% endblock %}
-
 
 <script>
 function selectView(view) {
-    fetch(`/set-view/?view=${view}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.status === "ok") {
-                document.querySelectorAll('.view-option').forEach(el => el.classList.remove('selected'));
-                document.getElementById(view).classList.add('selected');
-            }
-        });
+  fetch(`/set-view/?view=${view}`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === "ok") {
+        document.querySelectorAll('.card').forEach(el => el.classList.remove('border-success'));
+        document.querySelector(`img[alt='${view}']`).closest('.card').classList.add('border-success');
+      }
+    });
 }
 </script>
-
-
+{% endblock %}
