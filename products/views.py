@@ -1,6 +1,8 @@
 import os
+from pathlib import Path
 from django.conf import settings
 from django.shortcuts import render
+
 
 def select_category(request):
     """
