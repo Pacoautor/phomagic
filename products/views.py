@@ -1,41 +1,22 @@
 import os
-from pathlib import Path
 from django.conf import settings
 from django.shortcuts import render
 
-
 def select_category(request):
-    """
-    Lee dinámicamente todas las categorías y subcategorías de media/lineas
-    """
-    lineas_root = os.path.join(settings.BASE_DIR, 'media', 'lineas')
+    base_path = os.path.join(settings.BASE_DIR, 'media', 'lineas')
     categorias = []
 
-    if os.path.exists(lineas_root):
-        for categoria in sorted(os.listdir(lineas_root)):
-            categoria_path = os.path.join(lineas_root, categoria)
-            if os.path.isdir(categoria_path):
-                subcategorias = []
-                for sub in sorted(os.listdir(categoria_path)):
-                    sub_path = os.path.join(categoria_path, sub)
-                    if os.path.isdir(sub_path):
-                        vistas = []
-                        for archivo in os.listdir(sub_path):
-                            if archivo.endswith('.png'):
-                                vistas.append({
-                                    "nombre": os.path.splitext(archivo)[0],
-                                    "imagen": f"/media/lineas/{categoria}/{sub}/{archivo}"
-                                })
-                        subcategorias.append({
-                            "nombre": sub,
-                            "vistas": vistas
-                        })
+    if os.path.exists(base_path):
+        for nombre in sorted(os.listdir(base_path)):
+            ruta = os.path.join(base_path, nombre)
+            if os.path.isdir(ruta):
                 categorias.append({
-                    "nombre": categoria,
-                    "subcategorias": subcategorias
+                    "nombre": nombre,
+                    "legible": nombre.replace("_", " ").replace("-", " ").capitalize()
                 })
 
     return render(request, "select_category.html", {"categorias": categorias})
+
 
 
 
