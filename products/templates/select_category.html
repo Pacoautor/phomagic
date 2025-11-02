@@ -1,41 +1,19 @@
 {% extends "base.html" %}
-{% load static %}
-
 {% block content %}
-<div class="container text-center mt-5">
-  <h1 class="text-white mb-4">Selecciona una categoría</h1>
-
-  {% if categorias %}
-    <div class="row justify-content-center">
-      {% for c in categorias %}
-      <div class="col-6 col-md-3 mb-4">
-        <a href="{% url 'select_view' %}?categoria={{ c.nombre }}" class="text-decoration-none">
-          <div class="card bg-dark text-white border-light shadow-sm hover-card">
-            <div class="card-body">
-              <h5 class="card-title">{{ c.legible }}</h5>
-            </div>
-          </div>
-        </a>
-      </div>
+<div class="container py-5 text-center">
+  <h2 class="text-white mb-4">Selecciona una categoría</h2>
+  <div class="row justify-content-center">
+    {% if categories %}
+      {% for cat in categories %}
+        <div class="col-6 col-md-3 mb-3">
+          <a href="{% url 'select_subcategory' cat %}" class="btn btn-outline-light w-100 py-3">
+            {{ cat }}
+          </a>
+        </div>
       {% endfor %}
-    </div>
-  {% else %}
-    <p class="text-muted">No se encontraron categorías en <code>media/lineas</code>.</p>
-  {% endif %}
+    {% else %}
+      <p class="text-white">No hay categorías disponibles en media/lineas.</p>
+    {% endif %}
+  </div>
 </div>
-
-<style>
-  body {
-    background-color: #0f1115;
-    color: #f8f9fa;
-  }
-  .card {
-    cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
-  }
-  .hover-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 0 15px rgba(0, 123, 255, 0.3);
-  }
-</style>
 {% endblock %}

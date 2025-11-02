@@ -1,163 +1,120 @@
 import os
-from pathlib import Path
 from django.conf import settings
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
+from django.core.files.storage import FileSystemStorage
+
+# Ruta base donde están las líneas (categorías principales)
+LINEAS_ROOT = os.path.join(settings.MEDIA_ROOT, "lineas")
+
+# Variable global simple (temporal, idealmente mover a sesión)
+USER_SELECTION = {}
 
 
-# --------------------------------------------------------
-# Selección de categoría
-# --------------------------------------------------------
 def select_category(request):
-    """
-    Muestra todas las categorías disponibles dentro de media/lineas.
-    """
-    base_path = Path(settings.MEDIA_ROOT) / "lineas"
-    categorias = []
+    """Muestra las categorías principales dentro de media/lineas/"""
+    try:
+        categories = sorted([
+            folder for folder in os.listdir(LINEAS_ROOT)
+            if os.path.isdir(os.path.join(LINEAS_ROOT, folder))
+        ])
+    except FileNotFoundError:
+        categories = []
 
-    if base_path.exists():
-        for folder in sorted(base_path.iterdir()):
-            if folder.is_dir():
-                categorias.append(folder.name)
-
-    return render(request, "select_category.html", {"categorias": categorias})
+    return render(request, "select_category.html", {"categories": categories})
 
 
-# --------------------------------------------------------
-# Selección de vista
-# --------------------------------------------------------
-def select_view(request):
-    """
-    Muestra todas las subcategorías y vistas dentro de una categoría seleccionada.
-    """
-    categoria = request.GET.get("categoria")
-    if not categoria:
-        return redirect("select_category")
+def select_subcategory(request, category):
+    """Muestra las subcategorías dentro de una categoría seleccionada"""
+    category_path = os.path.join(LINEAS_ROOT, category)
+    try:
+        subcategories = sorted([
+            folder for folder in os.listdir(category_path)
+            if os.path.isdir(os.path.join(category_path, folder))
+        ])
+    except FileNotFoundError:
+        subcategories = []
 
-    base_path = Path(settings.MEDIA_ROOT) / "lineas" / categoria
-
-    if not base_path.exists():
-        return render(request, "upload_photo.html", {
-            "categoria": categoria,
-            "vistas": [],
-            "error": f"No se encontró la categoría '{categoria}'."
-        })
-
-    # Buscar recursivamente imágenes .png
-    vistas = []
-    for subdir, dirs, files in os.walk(base_path):
-        for file in files:
-            if file.lower().endswith(".png"):
-                relative_path = os.path.relpath(os.path.join(subdir, file), base_path)
-                vistas.append(relative_path.replace("\\", "/"))
-
-    if not vistas:
-        return render(request, "upload_photo.html", {
-            "categoria": categoria,
-            "vistas": [],
-            "error": "No se encontraron vistas dentro de la categoría seleccionada."
-        })
-
-    # Guardamos la categoría actual en sesión
-    request.session["selection"] = categoria
-    return render(request, "upload_photo.html", {"categoria": categoria, "vistas": vistas})
-
-
-# --------------------------------------------------------
-# Guardar vista seleccionada
-# --------------------------------------------------------
-def set_selected_view(request):
-    """
-    Guarda la vista seleccionada por el usuario en la sesión.
-    """
-    selected_view = request.GET.get("view")
-    if selected_view:
-        request.session["selected_view"] = selected_view
-        return JsonResponse({"status": "ok"})
-    return JsonResponse({"status": "error", "message": "Vista no válida"})
-
-
-# --------------------------------------------------------
-# Subida y procesamiento de imagen
-# --------------------------------------------------------
-def upload_photo(request):
-    """
-    Maneja la subida de imagen y conserva la categoría y vista seleccionada.
-    """
-    categoria = request.session.get("selection") or request.GET.get("categoria")
-    vista = request.session.get("selected_view")
-
-    if request.method == "POST":
-        uploaded_file = request.FILES.get("file")
-        if not uploaded_file:
-            return render(request, "upload_photo.html", {
-                "error": "Debes seleccionar una imagen.",
-                "categoria": categoria,
-                "vistas": [],
-            })
-
-        # Guarda la imagen subida en una carpeta temporal
-        upload_path = Path(settings.MEDIA_ROOT) / "uploads" / "input"
-        upload_path.mkdir(parents=True, exist_ok=True)
-        file_path = upload_path / uploaded_file.name
-        with open(file_path, "wb+") as destination:
-            for chunk in uploaded_file.chunks():
-                destination.write(chunk)
-
-        # Guardamos la ruta del archivo subido en la sesión
-        request.session["uploaded_file_url"] = str(file_path)
-
-        # Confirmación visual
-        return render(request, "upload_photo.html", {
-            "success": f"Imagen '{uploaded_file.name}' subida correctamente.",
-            "categoria": categoria,
-            "vistas": get_vistas(categoria),
-        })
-
-    # Si llega por GET, mostrar vistas disponibles
-    vistas = get_vistas(categoria)
-    return render(request, "upload_photo.html", {"categoria": categoria, "vistas": vistas})
-
-
-# --------------------------------------------------------
-# Página de procesamiento (placeholder para IA)
-# --------------------------------------------------------
-def processing(request):
-    """
-    Simula el procesamiento de la imagen con la vista seleccionada.
-    """
-    categoria = request.session.get("selection")
-    selected_view = request.session.get("selected_view")
-    uploaded_file_url = request.session.get("uploaded_file_url")
-
-    if not categoria or not selected_view or not uploaded_file_url:
-        return render(request, "error.html", {"error": "Faltan datos para procesar la imagen."})
-
-    return render(request, "processing.html", {
-        "categoria": categoria,
-        "selected_view": selected_view,
-        "uploaded_file_url": uploaded_file_url,
+    return render(request, "select_subcategory.html", {
+        "category": category,
+        "subcategories": subcategories,
     })
 
 
-# --------------------------------------------------------
-# Función auxiliar: obtener vistas (.png)
-# --------------------------------------------------------
-def get_vistas(categoria):
-    """
-    Devuelve todas las vistas (.png) dentro de una categoría o subcategoría.
-    """
-    if not categoria:
-        return []
+def select_view(request, category, subcategory):
+    """Muestra las vistas (miniaturas PNG y prompts DOCX)"""
+    subcat_path = os.path.join(LINEAS_ROOT, category, subcategory)
+    views = []
 
-    path = Path(settings.MEDIA_ROOT) / "lineas" / categoria
-    if not path.exists():
-        return []
-
-    vistas = []
-    for subdir, dirs, files in os.walk(path):
-        for file in files:
+    try:
+        for file in sorted(os.listdir(subcat_path)):
             if file.lower().endswith(".png"):
-                relative = os.path.relpath(os.path.join(subdir, file), path)
-                vistas.append(relative.replace("\\", "/"))
-    return sorted(vistas)
+                view_number = os.path.splitext(file)[0]
+                doc_path = os.path.join(subcat_path, f"{view_number}.docx")
+                if os.path.exists(doc_path):
+                    views.append({
+                        "image": os.path.join("media/lineas", category, subcategory, file),
+                        "prompt": os.path.join("media/lineas", category, subcategory, f"{view_number}.docx"),
+                        "name": view_number,
+                    })
+    except FileNotFoundError:
+        pass
+
+    return render(request, "upload_photo.html", {
+        "category": category,
+        "subcategory": subcategory,
+        "views": views
+    })
+
+
+def upload_photo(request):
+    """Sube una foto y guarda la selección del usuario"""
+    if request.method == "POST":
+        category = request.POST.get("category")
+        subcategory = request.POST.get("subcategory")
+        selected_view = request.POST.get("selected_view")
+        uploaded_file = request.FILES.get("photo")
+
+        if not (category and subcategory and selected_view and uploaded_file):
+            return render(request, "error.html", {
+                "error": "Faltan datos o no se ha seleccionado vista o imagen."
+            })
+
+        fs = FileSystemStorage()
+        filename = fs.save(uploaded_file.name, uploaded_file)
+        USER_SELECTION["image_path"] = fs.url(filename)
+        USER_SELECTION["category"] = category
+        USER_SELECTION["subcategory"] = subcategory
+        USER_SELECTION["view"] = selected_view
+
+        return redirect("processing")
+
+    return redirect("select_category")
+
+
+def processing(request):
+    """Procesa la imagen con el prompt de la vista seleccionada"""
+    user_data = USER_SELECTION.copy()
+    image_path = user_data.get("image_path")
+    view_name = user_data.get("view")
+    category = user_data.get("category")
+    subcategory = user_data.get("subcategory")
+
+    if not all([image_path, view_name, category, subcategory]):
+        return render(request, "error.html", {"error": "No se encontró la selección completa."})
+
+    # Ruta al prompt de la vista seleccionada
+    prompt_path = os.path.join(settings.MEDIA_ROOT, "lineas", category, subcategory, f"{view_name}.docx")
+
+    if not os.path.exists(prompt_path):
+        return render(request, "error.html", {"error": f"No se encontró el prompt: {prompt_path}"})
+
+    # Simulación del procesamiento
+    result_image = image_path  # en el futuro: resultado real del API
+
+    return render(request, "processing.html", {
+        "image_url": result_image,
+        "category": category,
+        "subcategory": subcategory,
+        "view": view_name,
+    })

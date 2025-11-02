@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-5 text-center">
+  <h2 class="text-white mb-4">Categoría: {{ category }}</h2>
+  <h4 class="text-white mb-3">Selecciona una subcategoría</h4>
+  <div class="row justify-content-center">
+    {% if subcategories %}
+      {% for sub in subcategories %}
+        <div class="col-6 col-md-3 mb-3">
+          <a href="{% url 'select_view' category sub %}" class="btn btn-outline-info w-100 py-3">
+            {{ sub }}
+          </a>
+        </div>
+      {% endfor %}
+    {% else %}
+      <p class="text-white">No hay subcategorías dentro de esta categoría.</p>
+    {% endif %}
+  </div>
+  <a href="{% url 'select_category' %}" class="btn btn-secondary mt-4">Volver</a>
+</div>
+{% endblock %}

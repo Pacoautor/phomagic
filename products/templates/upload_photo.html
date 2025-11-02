@@ -1,54 +1,43 @@
 {% extends "base.html" %}
-{% load static %}
-
 {% block content %}
 <div class="container py-5 text-center">
-  <h2 class="mb-4 text-white">Selecciona tu vista</h2>
-  <p class="text-muted">Escoge una vista y sube tu imagen para procesarla.</p>
+  <h2 class="text-white mb-4">Sube una imagen para: {{ category }} / {{ subcategory }}</h2>
 
-  {% if error %}
-    <div class="alert alert-warning">{{ error }}</div>
-  {% endif %}
+  {% if views %}
+    <form method="POST" enctype="multipart/form-data" action="{% url 'upload_photo' %}">
+      {% csrf_token %}
+      <input type="hidden" name="category" value="{{ category }}">
+      <input type="hidden" name="subcategory" value="{{ subcategory }}">
+      <input type="hidden" id="selected_view" name="selected_view" value="">
 
-  {% if vistas %}
-    <div class="row justify-content-center mb-4">
-      {% for vista in vistas %}
-      <div class="col-md-3 col-sm-4 col-6 mb-3">
-        <div class="card bg-dark border-secondary text-white h-100">
-          <img src="/media/lineas/{{ categoria }}/{{ vista }}" class="card-img-top rounded" alt="{{ vista }}">
-          <div class="card-body p-2">
-            <button type="button" class="btn btn-outline-light btn-sm" onclick="selectView('{{ vista }}')">
-              Seleccionar
-            </button>
+      <div class="row justify-content-center mb-4">
+        {% for view in views %}
+          <div class="col-6 col-md-3 mb-3">
+            <img src="/{{ view.image }}" alt="{{ view.name }}"
+                 class="img-thumbnail selectable"
+                 style="cursor:pointer;"
+                 onclick="selectView('{{ view.name }}', this)">
           </div>
-        </div>
+        {% endfor %}
       </div>
-      {% endfor %}
-    </div>
+
+      <div class="mb-3">
+        <input type="file" name="photo" accept="image/*" required class="form-control">
+      </div>
+      <button type="submit" class="btn btn-success">Procesar imagen</button>
+    </form>
   {% else %}
-    <div class="alert alert-warning">⚠️ No se encontraron vistas dentro de la categoría seleccionada.</div>
+    <p class="text-white">No hay vistas disponibles para esta subcategoría.</p>
   {% endif %}
 
-  <form method="POST" enctype="multipart/form-data" class="mt-4">
-    {% csrf_token %}
-    <div class="mb-3">
-      <label for="image" class="form-label text-white">Selecciona tu imagen</label>
-      <input type="file" name="file" id="image" class="form-control" required>
-    </div>
-    <button type="submit" class="btn btn-primary btn-lg">Subir y procesar</button>
-  </form>
+  <a href="{% url 'select_subcategory' category %}" class="btn btn-secondary mt-4">Volver</a>
 </div>
 
 <script>
-function selectView(view) {
-  fetch(`/set-view/?view=${view}`)
-    .then(res => res.json())
-    .then(data => {
-      if (data.status === "ok") {
-        document.querySelectorAll('.card').forEach(el => el.classList.remove('border-success'));
-        document.querySelector(`img[alt='${view}']`).closest('.card').classList.add('border-success');
-      }
-    });
-}
+  function selectView(name, element) {
+    document.querySelectorAll('.selectable').forEach(el => el.style.border = '3px solid transparent');
+    element.style.border = '3px solid lime';
+    document.getElementById('selected_view').value = name;
+  }
 </script>
 {% endblock %}

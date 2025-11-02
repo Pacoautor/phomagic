@@ -3,8 +3,14 @@ import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "dev-insecure-key")
-DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+LINEAS_ROOT = MEDIA_ROOT / 'lineas'
+
+# (Opcional: crea las carpetas si no existen)
+for sub in ("uploads/input", "uploads/output", "uploads/tmp", "lineas"):
+    (MEDIA_ROOT / sub).mkdir(parents=True, exist_ok=True)
 
 ALLOWED_HOSTS = [
     "phomagic-web.onrender.com",
@@ -86,16 +92,14 @@ for sub in ("uploads/input", "uploads/output", "uploads/tmp", "lineas"):
 # === Carpetas de trabajo ===
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Carpeta principal con categorías y vistas
 LINEAS_ROOT = MEDIA_ROOT / 'lineas'
 
-# Dónde estarán las 'líneas' en Render (disco persistente)
-LINEAS_ROOT = Path(os.environ.get("LINEAS_ROOT", "/data/lineas"))
-
-# Crear carpetas SOLO si son escribibles (evita errores en build)
-for p in (MEDIA_ROOT, LINEAS_ROOT):
+# Crear carpetas necesarias (solo si se puede escribir)
+for sub in ("uploads/input", "uploads/output", "uploads/tmp", "lineas"):
     try:
-        if os.access(p.parent, os.W_OK):
-            p.mkdir(parents=True, exist_ok=True)
+        (MEDIA_ROOT / sub).mkdir(parents=True, exist_ok=True)
     except Exception:
         pass
 
