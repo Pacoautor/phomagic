@@ -27,13 +27,14 @@ def select_category(request):
 
 def select_view(request):
     """
-    Muestra las subcategorías y vistas (miniaturas) de una categoría seleccionada.
+    Muestra todas las subcategorías y vistas dentro de una categoría seleccionada.
     """
     categoria = request.GET.get("categoria")
     if not categoria:
         return redirect("select_category")
 
     base_path = Path(settings.BASE_DIR) / "media" / "lineas" / categoria
+
     if not base_path.exists():
         return render(request, "upload_photo.html", {
             "categoria": categoria,
@@ -41,17 +42,23 @@ def select_view(request):
             "error": f"No se encontró la categoría '{categoria}'."
         })
 
-    vistas = sorted([f.name for f in base_path.glob("**/*.png")])
+    # Buscar recursivamente subcarpetas e imágenes .png
+    vistas = []
+    for subdir, dirs, files in os.walk(base_path):
+        for file in files:
+            if file.lower().endswith(".png"):
+                relative_path = os.path.relpath(os.path.join(subdir, file), base_path)
+                vistas.append(relative_path.replace("\\", "/"))
+
     if not vistas:
         return render(request, "upload_photo.html", {
             "categoria": categoria,
             "vistas": [],
-            "error": "No se encontraron vistas en /media/lineas/."
+            "error": "No se encontraron vistas dentro de la categoría seleccionada."
         })
 
     request.session["selection"] = categoria
     return render(request, "upload_photo.html", {"categoria": categoria, "vistas": vistas})
-
 
 def set_selected_view(request):
     """
