@@ -1,17 +1,16 @@
 ﻿
-# Ignorar entorno virtual y archivos temporales
+.env
 .venv/
-venv/
 __pycache__/
 *.pyc
 db.sqlite3
+
+# Ignorar todo media excepto lineas
+media/*
+!media/lineas/
+!media/lineas/**
+
+# Ignorar entorno virtual y logs
+venv/
 *.log
 .DS_Store
-
-# Ignorar carpeta media excepto las vistas
-/media/*
-!/media/lineas/
-/media/lineas/*
-!/media/lineas/**
-!media/lineas/*
-!media/lineas/**/*

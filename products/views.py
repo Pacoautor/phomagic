@@ -1,28 +1,42 @@
 import os
-from pathlib import Path
 from django.conf import settings
-from django.shortcuts import render, redirect
-from django.http import JsonResponse
-from django.core.files.storage import default_storage
-
+from django.shortcuts import render
 
 def select_category(request):
     """
-    Muestra todas las categorías (carpetas dentro de media/lineas).
+    Lee dinámicamente todas las categorías y subcategorías de media/lineas
     """
-    base_path = Path(settings.MEDIA_ROOT) / "lineas"
-    if not base_path.exists():
-        return render(request, "error.html", {"error": "No se encontró la carpeta 'media/lineas'."})
-
+    lineas_root = os.path.join(settings.BASE_DIR, 'media', 'lineas')
     categorias = []
-    for d in base_path.iterdir():
-        if d.is_dir():
-            categorias.append({
-                "nombre": d.name,
-                "legible": d.name.replace("_", " ").replace("-", " ").capitalize()
-            })
+
+    if os.path.exists(lineas_root):
+        for categoria in sorted(os.listdir(lineas_root)):
+            categoria_path = os.path.join(lineas_root, categoria)
+            if os.path.isdir(categoria_path):
+                subcategorias = []
+                for sub in sorted(os.listdir(categoria_path)):
+                    sub_path = os.path.join(categoria_path, sub)
+                    if os.path.isdir(sub_path):
+                        vistas = []
+                        for archivo in os.listdir(sub_path):
+                            if archivo.endswith('.png'):
+                                vistas.append({
+                                    "nombre": os.path.splitext(archivo)[0],
+                                    "imagen": f"/media/lineas/{categoria}/{sub}/{archivo}"
+                                })
+                        subcategorias.append({
+                            "nombre": sub,
+                            "vistas": vistas
+                        })
+                categorias.append({
+                    "nombre": categoria,
+                    "subcategorias": subcategorias
+                })
 
     return render(request, "select_category.html", {"categorias": categorias})
+
+
+
 
 
 def select_view(request):
