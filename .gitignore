@@ -1,14 +1,14 @@
-﻿.env
+﻿# Ignorar entorno y archivos innecesarios
+.env
 .venv/
 __pycache__/
 *.pyc
 db.sqlite3
-media/
-!media/lineas/
-!media/lineas/**/*
-
 *.log
 .DS_Store
-!products/lineas/ 
-!products/lineas/**/* 
-!products/lineas/** 
+
+# Ignorar media excepto lineas
+/media/*
+!/media/lineas/
+/media/lineas/*
+!/media/lineas/**
