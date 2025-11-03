@@ -1,0 +1,67 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seleccionar vista - {{ subcategory_name }}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <style>
+    body {
+      background-color: #0f1115;
+      color: white;
+    }
+    .view-card {
+      background: #1a1c20;
+      border-radius: 10px;
+      overflow: hidden;
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.3s;
+    }
+    .view-card:hover {
+      transform: scale(1.05);
+    }
+    .selected {
+      border: 3px solid #00ff99;
+    }
+    .btn-process {
+      background-color: #00ff99;
+      border: none;
+      color: black;
+      font-weight: bold;
+      padding: 10px 25px;
+      border-radius: 8px;
+      margin-top: 20px;
+    }
+  </style>
+  <script>
+    function selectView(img) {
+      document.querySelectorAll('.view-card').forEach(v => v.classList.remove('selected'));
+      img.classList.add('selected');
+      localStorage.setItem('selectedView', img.src);
+    }
+  </script>
+</head>
+<body>
+  <div class="container py-5">
+    <h1 class="text-center mb-4">{{ subcategory_name }}</h1>
+    {% if views %}
+      <div class="row g-3">
+        {% for view in views %}
+          <div class="col-6 col-md-3">
+            <div class="view-card" onclick="selectView(this)">
+              <img src="{{ view }}" alt="Vista {{ forloop.counter }}" class="img-fluid rounded">
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+      <div class="text-center">
+        <button class="btn-process" onclick="window.location.href='/'">Procesar Imagen</button>
+      </div>
+    {% else %}
+      <p class="text-center text-warning mt-5">No se encontraron vistas en {{ subcategory_name }}</p>
+    {% endif %}
+  </div>
+</body>
+</html>
