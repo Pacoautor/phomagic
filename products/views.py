@@ -54,3 +54,18 @@ def select_view(request, category_name, subcategory_name):
         'subcategory_name': subcategory_name,
         'views': views
     })
+from django.shortcuts import render
+from django.core.files.storage import default_storage
+from django.conf import settings
+import os
+
+def upload_photo(request):
+    if request.method == "POST" and request.FILES.get("photo"):
+        photo = request.FILES["photo"]
+        save_path = os.path.join(settings.MEDIA_ROOT, "uploads", photo.name)
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        with default_storage.open(save_path, "wb+") as destination:
+            for chunk in photo.chunks():
+                destination.write(chunk)
+        return render(request, "upload_photo.html", {"message": "Imagen subida correctamente."})
+    return render(request, "upload_photo.html")
