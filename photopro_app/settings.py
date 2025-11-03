@@ -1,14 +1,13 @@
 import os
 from pathlib import Path
 
-# --- BASE SETTINGS ---
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'tu-clave-secreta-aqui'
+SECRET_KEY = 'django-insecure-tu-clave-aqui'
 DEBUG = True
-ALLOWED_HOSTS = ['*']
 
-# --- APPS ---
+ALLOWED_HOSTS = ['phomagic.com', 'www.phomagic.com', 'phomagic-web.onrender.com']
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -19,7 +18,6 @@ INSTALLED_APPS = [
     'products',
 ]
 
-# --- MIDDLEWARE ---
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -50,8 +48,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'phomagic.wsgi.application'
 
-
-# --- DATABASE ---
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -59,22 +55,15 @@ DATABASES = {
     }
 }
 
-
-# --- STATIC FILES ---
-STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
-
-# --- MEDIA FILES (PERSISTENT DISK ON RENDER) ---
-MEDIA_URL = "https://fgrautor.free.nf/media/"
-MEDIA_URL = "https://fgrautor.free.nf/media/"
-MEDIA_URL = "https://fgrautor.free.nf/media/"
-
-MEDIA_ROOT = Path('/opt/render/project/src/media')
-
-# --- LANGUAGE & TIME ---
 LANGUAGE_CODE = 'es-es'
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Europe/Madrid'
 USE_I18N = True
 USE_TZ = True
 
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# ✅ Configuración final para el nuevo hosting de imágenes
+MEDIA_URL = 'https://fgrautor.free.nf/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
