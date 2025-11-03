@@ -65,7 +65,10 @@ STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # --- MEDIA FILES (PERSISTENT DISK ON RENDER) ---
-MEDIA_URL = '/media/'
+MEDIA_URL = "https://fgrautor.free.nf/media/"
+MEDIA_URL = "https://fgrautor.free.nf/media/"
+MEDIA_URL = "https://fgrautor.free.nf/media/"
+
 MEDIA_ROOT = Path('/opt/render/project/src/media')
 
 # --- LANGUAGE & TIME ---
