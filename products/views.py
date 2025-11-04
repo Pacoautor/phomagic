@@ -1,7 +1,12 @@
 import os
+import base64
 from django.shortcuts import render
 from django.conf import settings
 from pathlib import Path
+from openai import OpenAI
+from docx import Document
+
+client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
 def get_categories():
     lineas_path = Path(settings.MEDIA_ROOT) / 'lineas'
@@ -32,6 +37,19 @@ def get_views(category, subcategory):
     
     return sorted(views, key=lambda x: x['name'])
 
+def get_prompt(category, subcategory, view_name):
+    docx_path = Path(settings.MEDIA_ROOT) / 'lineas' / category / subcategory / f'{view_name}.docx'
+    
+    if not docx_path.exists():
+        return "Genera una imagen profesional de producto."
+    
+    try:
+        doc = Document(str(docx_path))
+        prompt = '\n'.join([p.text for p in doc.paragraphs if p.text.strip()])
+        return prompt if prompt else "Genera una imagen profesional de producto."
+    except:
+        return "Genera una imagen profesional de producto."
+
 def select_category(request):
     categories = get_categories()
     return render(request, "select_category.html", {"categories": categories})
@@ -54,6 +72,7 @@ def view_products(request, category, subcategory):
 def upload_photo(request, category, subcategory, view_name):
     if request.method == "POST" and request.FILES.get("photo"):
         photo = request.FILES["photo"]
+        
         if not photo.name.lower().endswith((".jpg", ".jpeg", ".png")):
             return render(request, "upload_photo.html", {
                 "error": "Formato no válido. Sube JPG o PNG.",
@@ -62,14 +81,37 @@ def upload_photo(request, category, subcategory, view_name):
                 "view_name": view_name
             })
         
-        result_url = "https://via.placeholder.com/512x512?text=Procesado"
-        return render(request, "upload_photo.html", {
-            "success": True,
-            "result_image": result_url,
-            "category": category,
-            "subcategory": subcategory,
-            "view_name": view_name
-        })
+        try:
+            prompt = get_prompt(category, subcategory, view_name)
+            
+            photo.seek(0)
+            image_bytes = photo.read()
+            
+            response = client.images.edit(
+                model="dall-e-2",
+                image=image_bytes,
+                prompt=prompt,
+                n=1,
+                size="1024x1024"
+            )
+            
+            result_url = response.data[0].url
+            
+            return render(request, "upload_photo.html", {
+                "success": True,
+                "result_image": result_url,
+                "category": category,
+                "subcategory": subcategory,
+                "view_name": view_name
+            })
+            
+        except Exception as e:
+            return render(request, "upload_photo.html", {
+                "error": f"Error al procesar: {str(e)}",
+                "category": category,
+                "subcategory": subcategory,
+                "view_name": view_name
+            })
     
     return render(request, "upload_photo.html", {
         "category": category,
