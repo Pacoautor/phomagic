@@ -6,7 +6,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-change-this-in-production')
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = ['*']
+# Railway proporciona RAILWAY_STATIC_URL y otras variables
+RAILWAY_ENVIRONMENT = os.getenv('RAILWAY_ENVIRONMENT')
+
+# Configuración de hosts
+ALLOWED_HOSTS = ['*']  # Railway maneja el dominio automáticamente
+
+# Si estás en Railway, agrega el dominio específico
+RAILWAY_PUBLIC_DOMAIN = os.getenv('RAILWAY_PUBLIC_DOMAIN')
+if RAILWAY_PUBLIC_DOMAIN:
+    ALLOWED_HOSTS = [RAILWAY_PUBLIC_DOMAIN, '*.railway.app', '*']
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -83,7 +92,14 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_DIRS = [BASE_DIR / 'static'] if (BASE_DIR / 'static').exists() else []
+
+# Crear directorios si no existen
+STATIC_ROOT.mkdir(parents=True, exist_ok=True)
+
+# Si tienes archivos estáticos propios
+STATICFILES_DIRS = []
+if (BASE_DIR / 'static').exists():
+    STATICFILES_DIRS = [BASE_DIR / 'static']
 
 # Configuración de WhiteNoise para servir archivos estáticos
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
@@ -93,22 +109,54 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # Asegurar que el directorio media existe
-MEDIA_ROOT.mkdir(exist_ok=True)
+MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 
 # OpenAI API Key
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
-# Security settings para producción
-if not DEBUG:
+# Security settings SOLO para producción Y cuando NO estamos en Railway
+# Railway maneja HTTPS automáticamente, no necesitamos forzar SSL redirect
+if not DEBUG and not RAILWAY_ENVIRONMENT:
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-    X_FRAME_OPTIONS = 'DENY'
+
+# Estas son seguras de activar siempre
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+
+# CSRF Trusted Origins para Railway
+if RAILWAY_PUBLIC_DOMAIN:
+    CSRF_TRUSTED_ORIGINS = [
+        f'https://{RAILWAY_PUBLIC_DOMAIN}',
+        'https://*.railway.app',
+    ]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Configuración de archivos subidos
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10485760  # 10MB
+
+# Logging para debug
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
