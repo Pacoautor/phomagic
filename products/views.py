@@ -1,4 +1,3 @@
-
 from django.conf import settings
 from django.shortcuts import render
 from pathlib import Path
@@ -54,6 +53,8 @@ def select_view(request, category_name, subcategory_name):
         'subcategory_name': subcategory_name,
         'views': views
     })
+
+
 from django.shortcuts import render
 from django.core.files.storage import default_storage
 from django.conf import settings
