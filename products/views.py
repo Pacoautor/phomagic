@@ -1,11 +1,10 @@
 import os
 from django.shortcuts import render
 
-# URL base donde están tus imágenes
+# Base de medios en InfinityFree
 MEDIA_URL = "https://fgrautor.free.nf/media/lineas"
 
 def select_category(request):
-    base_dir = os.path.join("media", "lineas")
     categories = ["calzado", "complementos", "joyas", "moda"]
     return render(request, "select_category.html", {"categories": categories, "media_url": MEDIA_URL})
 

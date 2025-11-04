@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ subcategory|title }}</title>
+    <style>
+        body { background-color: #111; color: #fff; text-align: center; font-family: Arial; }
+        img { margin: 10px; width: 200px; height: auto; border-radius: 8px; box-shadow: 0 0 5px #ffa500; }
+        a { color: #ffa500; text-decoration: none; display: block; margin-top: 20px; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <h1>{{ subcategory|title }}</h1>
+    {% if images %}
+        {% for img in images %}
+            <img src="{{ img }}" alt="{{ subcategory }}">
+        {% endfor %}
+    {% else %}
+        <p>No se encontraron imágenes para esta subcategoría.</p>
+    {% endif %}
+    <a href="/subcategory/{{ category }}/">Volver a {{ category|title }}</a>
+</body>
+</html>

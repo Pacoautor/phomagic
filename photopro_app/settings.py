@@ -1,10 +1,8 @@
 import os
 from pathlib import Path
 
-# BASE DIR
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# SEGURIDAD
 SECRET_KEY = 'django-insecure-tu-clave-aqui'
 DEBUG = True
 
@@ -14,7 +12,6 @@ ALLOWED_HOSTS = [
     'phomagic-web.onrender.com',
 ]
 
-# APLICACIONES INSTALADAS
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -22,10 +19,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'products',  # Tu app principal
+    'products',
 ]
 
-# MIDDLEWARE
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -38,7 +34,6 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'phomagic.urls'
 
-# PLANTILLAS
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -57,7 +52,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'phomagic.wsgi.application'
 
-# BASE DE DATOS LOCAL (SIN psycopg2)
+# BASE DE DATOS LOCAL (NO EXTERNA)
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -65,7 +60,6 @@ DATABASES = {
     }
 }
 
-# VALIDACIÓN DE CONTRASEÑAS
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -73,17 +67,15 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-# CONFIGURACIÓN REGIONAL
 LANGUAGE_CODE = 'es-es'
 TIME_ZONE = 'Europe/Madrid'
 USE_I18N = True
 USE_TZ = True
 
-# ARCHIVOS ESTÁTICOS Y MEDIA
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-# Tus imágenes remotas
+# Conexión con InfinityFree
 MEDIA_URL = 'https://fgrautor.free.nf/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
