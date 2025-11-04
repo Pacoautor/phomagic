@@ -2,23 +2,27 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>{{ subcategory|title }}</title>
+    <title>{{ subcategory }}</title>
     <style>
-        body { background-color: #111; color: #fff; text-align: center; font-family: Arial; }
-        img { margin: 10px; width: 200px; height: auto; border-radius: 8px; box-shadow: 0 0 5px #ffa500; }
-        a { color: #ffa500; text-decoration: none; display: block; margin-top: 20px; }
-        a:hover { text-decoration: underline; }
+        body { background-color: #0a0a0a; color: white; text-align: center; font-family: Arial; }
+        .container { display: flex; justify-content: center; flex-wrap: wrap; gap: 20px; margin-top: 30px; }
+        .view-card { border: 2px solid #ff7f00; border-radius: 10px; padding: 10px; width: 180px; cursor: pointer; }
+        .view-card img { width: 100%; border-radius: 8px; }
+        a { text-decoration: none; color: orange; display: block; margin-top: 15px; }
     </style>
 </head>
 <body>
-    <h1>{{ subcategory|title }}</h1>
-    {% if images %}
-        {% for img in images %}
-            <img src="{{ img }}" alt="{{ subcategory }}">
+    <h1>{{ subcategory }}</h1>
+    <div class="container">
+        {% for view in views %}
+        <div class="view-card">
+            <a href="{% url 'upload_photo' category subcategory view.name %}">
+                <img src="{{ view.image }}" alt="{{ view.name }}">
+                <p>{{ view.name }}</p>
+            </a>
+        </div>
         {% endfor %}
-    {% else %}
-        <p>No se encontraron imágenes para esta subcategoría.</p>
-    {% endif %}
-    <a href="/subcategory/{{ category }}/">Volver a {{ category|title }}</a>
+    </div>
+    <a href="javascript:history.back()">Volver a {{ category }}</a>
 </body>
 </html>
