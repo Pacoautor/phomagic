@@ -1,6 +1,7 @@
-from django.urls import path
-from products import views
+from django.contrib import admin
+from django.urls import path, include
 
 urlpatterns = [
-    path('upload/<str:category>/<str:subcategory>/<str:view_name>/', views.upload_photo, name='upload_photo'),
+    path('admin/', admin.site.urls),
+    path('', include('products.urls')),  # redirige la raíz a products
 ]

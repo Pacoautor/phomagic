@@ -60,3 +60,30 @@ def upload_photo(request, category=None, subcategory=None, view_name=None):
             messages.error(request, f"Error procesando la imagen: {e}")
 
     return render(request, "upload_photo.html", context)
+
+def select_category(request):
+    categories = ["Calzado", "Complementos", "Joyas", "Moda"]
+    return render(request, "select_category.html", {"categories": categories})
+
+
+def select_subcategory(request, category):
+    subcategories = {
+        "Moda": ["Camisa_Hombre", "Camisetas", "Polos"],
+        "Calzado": ["Deportivos", "Botas", "Sandalias"],
+        "Complementos": ["Gafas", "Cinturones", "Sombreros"],
+        "Joyas": ["Collares", "Anillos", "Pulseras"]
+    }
+    return render(request, "select_subcategory.html", {
+        "category": category,
+        "subcategories": subcategories.get(category, [])
+    })
+
+
+def view_products(request, category, subcategory):
+    views = ["Vista 1", "Vista 2"]
+    return render(request, "view_products.html", {
+        "category": category,
+        "subcategory": subcategory,
+        "views": views
+    })
+
