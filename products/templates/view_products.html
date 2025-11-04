@@ -16,6 +16,7 @@
     <div class="container">
         {% for view in views %}
         <div class="view-card">
+            <!-- 🔧 Aquí estaba el error -->
             <a href="{% url 'upload_photo' category subcategory view.name %}">
                 <img src="{{ view.image }}" alt="{{ view.name }}">
                 <p>{{ view.name }}</p>
