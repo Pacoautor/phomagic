@@ -1,25 +1,63 @@
-{% extends "base.html" %}
-{% block content %}
-<h2>Sube tu imagen para {{ view_name }}</h2>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Subir imagen - {{ subcategory }}</title>
+    <style>
+        body {
+            background-color: #0a0a0a;
+            color: white;
+            text-align: center;
+            font-family: Arial;
+        }
+        form {
+            margin-top: 40px;
+        }
+        input[type=file] {
+            margin: 20px;
+        }
+        button {
+            background-color: orange;
+            color: black;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        img {
+            margin-top: 20px;
+            border: 2px solid orange;
+            border-radius: 10px;
+        }
+        a {
+            display: block;
+            color: orange;
+            margin-top: 20px;
+        }
+        .error {
+            color: red;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Subir imagen para {{ subcategory }} ({{ view_name }})</h1>
 
-<form method="post" enctype="multipart/form-data">
-    {% csrf_token %}
-    <input type="file" name="photo" accept="image/*" required><br><br>
-    <button type="submit">Subir y procesar</button>
-</form>
+    {% if error %}
+        <p class="error">{{ error }}</p>
+    {% endif %}
 
-{% if messages %}
-  <ul>
-  {% for message in messages %}
-    <li style="color: orange;">{{ message }}</li>
-  {% endfor %}
-  </ul>
-{% endif %}
+    <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="file" name="photo" accept="image/*" required>
+        <button type="submit">Subir imagen</button>
+    </form>
 
-{% if result_url %}
-  <h3>Resultado generado:</h3>
-  <img src="{{ result_url }}" alt="Resultado" style="max-width:400px;border:1px solid #ff8c00;">
-{% endif %}
+    {% if success %}
+        <h3>Resultado generado:</h3>
+        <img src="{{ result_image }}" alt="Resultado" width="400">
+    {% endif %}
 
-<a href="javascript:history.back()">⬅ Volver</a>
-{% endblock %}
+    <a href="javascript:history.back()">Volver a {{ subcategory }}</a>
+</body>
+</html>
