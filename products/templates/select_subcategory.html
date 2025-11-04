@@ -1,22 +1,17 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>Subcategorías de {{ category }}</title>
-    <style>
-        body { background-color: #111; color: #fff; text-align: center; font-family: Arial; }
-        a { display: block; margin: 20px; padding: 15px; background: #222; color: #ffa500; text-decoration: none; border-radius: 8px; width: 200px; margin-left: auto; margin-right: auto; }
-        a:hover { background: #ffa500; color: #111; }
-    </style>
+<meta charset="UTF-8">
+<title>Subcategorías de {{ category }}</title>
+<style>
+body { background: #0a0a0a; color: white; text-align: center; font-family: Arial; }
+a { display: block; margin: 15px auto; background: #222; padding: 10px 30px; border-radius: 8px; width: 200px; color: orange; text-decoration: none; }
+</style>
 </head>
 <body>
-    <h1>Subcategorías de {{ category|title }}</h1>
-    {% if subcategories %}
-        {% for sub in subcategories %}
-            <a href="/products/{{ category }}/{{ sub }}/">{{ sub|title }}</a>
-        {% endfor %}
-    {% else %}
-        <p>No se encontraron subcategorías.</p>
-    {% endif %}
+<h1>Subcategorías de {{ category }}</h1>
+{% for sub in subcategories %}
+<a href="/{{ category }}/{{ sub }}/">{{ sub }}</a>
+{% endfor %}
 </body>
 </html>

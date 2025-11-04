@@ -1,22 +1,17 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>Seleccionar categoría</title>
-    <style>
-        body { background-color: #111; color: #fff; text-align: center; font-family: Arial; }
-        a { display: block; margin: 20px; padding: 15px; background: #222; color: #ffa500; text-decoration: none; border-radius: 8px; width: 200px; margin-left: auto; margin-right: auto; }
-        a:hover { background: #ffa500; color: #111; }
-    </style>
+<meta charset="UTF-8">
+<title>Categorías</title>
+<style>
+body { background: #0a0a0a; color: white; text-align: center; font-family: Arial; }
+a { display: block; margin: 20px auto; background: #222; padding: 10px 30px; border-radius: 8px; width: 200px; color: orange; text-decoration: none; }
+</style>
 </head>
 <body>
-    <h1>Selecciona una categoría</h1>
-    {% if categories %}
-        {% for cat in categories %}
-            <a href="/subcategory/{{ cat }}/">{{ cat|title }}</a>
-        {% endfor %}
-    {% else %}
-        <p>No se encontraron categorías en /media/lineas</p>
-    {% endif %}
+<h1>Selecciona una categoría</h1>
+{% for cat in categories %}
+<a href="/{{ cat }}/">{{ cat }}</a>
+{% endfor %}
 </body>
 </html>

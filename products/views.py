@@ -1,52 +1,28 @@
-from django.shortcuts import render
-
-def select_category(request):
-    categories = ["Calzado", "Complementos", "Joyas", "Moda"]
-    return render(request, "select_category.html", {"categories": categories})
-
-def select_subcategory(request, category):
-    subcategories = {
-        "Moda": ["Camisa_Hombre", "Camisetas", "Polos"],
-        "Calzado": ["Deportivos", "Botas", "Sandalias"],
-        "Complementos": ["Gafas", "Cinturones", "Sombreros"],
-        "Joyas": ["Collares", "Anillos", "Pulseras"]
-    }
-    return render(request, "select_subcategory.html", {
-        "category": category,
-        "subcategories": subcategories.get(category, [])
-    })
-
-def view_products(request, category, subcategory):
-    views = [
-        {"name": "vista1", "image": "/static/images/vista1.png"},
-        {"name": "vista2", "image": "/static/images/vista2.png"},
-    ]
-    return render(request, "view_products.html", {
-        "category": category,
-        "subcategory": subcategory,
-        "views": views
-    })
-
-def upload_photo(request, category, subcategory, view_name):
-    if request.method == "POST" and request.FILES.get("photo"):
-        photo = request.FILES["photo"]
-        if not photo.name.lower().endswith((".jpg", ".jpeg", ".png")):
-            return render(request, "upload_photo.html", {
-                "error": "Formato no válido. Sube una imagen JPG o PNG.",
-                "category": category,
-                "subcategory": subcategory,
-                "view_name": view_name
-            })
-        result_url = "https://via.placeholder.com/512x512?text=Imagen+procesada"
-        return render(request, "upload_photo.html", {
-            "success": True,
-            "result_image": result_url,
-            "category": category,
-            "subcategory": subcategory,
-            "view_name": view_name
-        })
-    return render(request, "upload_photo.html", {
-        "category": category,
-        "subcategory": subcategory,
-        "view_name": view_name
-    })
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>{{ subcategory }}</title>
+<style>
+body { background: #0a0a0a; color: white; text-align: center; font-family: Arial; }
+.container { display: flex; justify-content: center; flex-wrap: wrap; gap: 20px; margin-top: 30px; }
+.view-card { border: 2px solid #ff7f00; border-radius: 10px; padding: 10px; width: 180px; cursor: pointer; }
+.view-card img { width: 100%; border-radius: 8px; }
+a { text-decoration: none; color: orange; display: block; margin-top: 15px; }
+</style>
+</head>
+<body>
+<h1>{{ subcategory }}</h1>
+<div class="container">
+{% for view in views %}
+<div class="view-card">
+<a href="/upload/{{ category }}/{{ subcategory }}/{{ view.name }}/">
+<img src="{{ view.image }}" alt="{{ view.name }}">
+<p>{{ view.name }}</p>
+</a>
+</div>
+{% endfor %}
+</div>
+<a href="javascript:history.back()">Volver a {{ category }}</a>
+</body>
+</html>
