@@ -1,1 +1,1 @@
-web: gunicorn photopro_app.wsgi:application
+web: gunicorn photopro_app.wsgi

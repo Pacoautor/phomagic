@@ -4,13 +4,9 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'django-insecure-tu-clave-aqui'
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = [
-    'phomagic.com',
-    'www.phomagic.com',
-    'phomagic-web.onrender.com',
-]
+ALLOWED_HOSTS = ['*']  # Railway genera la URL automáticamente
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -50,33 +46,12 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'phomagic.wsgi.application'
-
-# BASE DE DATOS LOCAL (NO EXTERNA)
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
-
-AUTH_PASSWORD_VALIDATORS = [
-    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
-]
-
-LANGUAGE_CODE = 'es-es'
-TIME_ZONE = 'Europe/Madrid'
-USE_I18N = True
-USE_TZ = True
+WSGI_APPLICATION = 'photopro_app.wsgi.application'
 
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-# Conexión con InfinityFree
-MEDIA_URL = 'https://fgrautor.free.nf/media/'
+MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
