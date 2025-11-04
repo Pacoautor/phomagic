@@ -1,9 +1,10 @@
+from django.contrib import admin
 from django.urls import path
-from . import views
+from products import views
 
 urlpatterns = [
-    path('', views.upload_photo, name='upload_photo'),
-    path('select-category/', views.select_category, name='select_category'),
-    path('select-view/', views.select_view, name='select_view'),
-    path('processing/', views.processing, name='processing'),
+    path('admin/', admin.site.urls),
+    path('', views.select_category, name='select_category'),
+    path('subcategory/<str:category>/', views.select_subcategory, name='select_subcategory'),
+    path('products/<str:category>/<str:subcategory>/', views.view_products, name='view_products'),
 ]

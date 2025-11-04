@@ -4,12 +4,17 @@ from pathlib import Path
 # BASE DIR
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# SECURITY
+# SEGURIDAD
 SECRET_KEY = 'django-insecure-tu-clave-aqui'
 DEBUG = True
-ALLOWED_HOSTS = ['phomagic.com', 'www.phomagic.com', 'phomagic-web.onrender.com']
 
-# APPLICATION DEFINITION
+ALLOWED_HOSTS = [
+    'phomagic.com',
+    'www.phomagic.com',
+    'phomagic-web.onrender.com',
+]
+
+# APLICACIONES INSTALADAS
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -17,9 +22,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'products',
+    'products',  # Tu app principal
 ]
 
+# MIDDLEWARE
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -32,6 +38,7 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'phomagic.urls'
 
+# PLANTILLAS
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -50,7 +57,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'phomagic.wsgi.application'
 
-# DATABASE (solo SQLite)
+# BASE DE DATOS LOCAL (SIN psycopg2)
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -58,7 +65,7 @@ DATABASES = {
     }
 }
 
-# PASSWORD VALIDATION
+# VALIDACIÓN DE CONTRASEÑAS
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -66,17 +73,18 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-# LANGUAGE AND TIME
+# CONFIGURACIÓN REGIONAL
 LANGUAGE_CODE = 'es-es'
 TIME_ZONE = 'Europe/Madrid'
 USE_I18N = True
 USE_TZ = True
 
-# STATIC AND MEDIA
+# ARCHIVOS ESTÁTICOS Y MEDIA
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-MEDIA_URL = 'https://fgrautor.free.nf/media/'  # tu servidor remoto en InfinityFree
+# Tus imágenes remotas
+MEDIA_URL = 'https://fgrautor.free.nf/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
