@@ -1,4 +1,16 @@
-Django
-gunicorn
-pillow
-requests
+# --- Dependencias principales del proyecto ---
+Django==5.0.3
+gunicorn==23.0.0
+
+# --- Integración con OpenAI y peticiones HTTP ---
+openai==1.12.0
+requests==2.31.0
+
+# --- Utilidades para imágenes ---
+Pillow==10.3.0
+
+# --- Variables de entorno (si algún día lo vuelves a usar localmente) ---
+python-dotenv==1.0.1
+
+# --- Dependencias de compatibilidad ---
+whitenoise==6.6.0        # Sirve archivos estáticos en producción (CSS, imágenes, JS)
