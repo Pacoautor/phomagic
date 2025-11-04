@@ -1,13 +1,15 @@
 import os
 from pathlib import Path
 
+# BASE DIR
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# SECURITY
 SECRET_KEY = 'django-insecure-tu-clave-aqui'
 DEBUG = True
-
 ALLOWED_HOSTS = ['phomagic.com', 'www.phomagic.com', 'phomagic-web.onrender.com']
 
+# APPLICATION DEFINITION
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -33,7 +35,7 @@ ROOT_URLCONF = 'phomagic.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'products' / 'templates'],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -48,6 +50,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'phomagic.wsgi.application'
 
+# DATABASE (solo SQLite)
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -55,23 +58,25 @@ DATABASES = {
     }
 }
 
+# PASSWORD VALIDATION
+AUTH_PASSWORD_VALIDATORS = [
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+]
+
+# LANGUAGE AND TIME
 LANGUAGE_CODE = 'es-es'
 TIME_ZONE = 'Europe/Madrid'
 USE_I18N = True
 USE_TZ = True
 
+# STATIC AND MEDIA
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-# ✅ Configuración final para el nuevo hosting de imágenes
-MEDIA_URL = 'https://fgrautor.free.nf/media/'
+MEDIA_URL = 'https://fgrautor.free.nf/media/'  # tu servidor remoto en InfinityFree
 MEDIA_ROOT = BASE_DIR / 'media'
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-# --- Archivos estáticos y multimedia ---
-STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
-
-MEDIA_URL = 'https://fgrautor.free.nf/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
-
