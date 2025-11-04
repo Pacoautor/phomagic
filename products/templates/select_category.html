@@ -1,17 +1,83 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>Categorías</title>
-<style>
-body { background: #0a0a0a; color: white; text-align: center; font-family: Arial; }
-a { display: block; margin: 20px auto; background: #222; padding: 10px 30px; border-radius: 8px; width: 200px; color: orange; text-decoration: none; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seleccionar Categoría</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body { 
+            background-color: #0a0a0a; 
+            color: #fff; 
+            text-align: center; 
+            font-family: 'Segoe UI', Arial, sans-serif;
+            padding: 20px;
+        }
+        
+        h1 {
+            margin: 40px 0;
+            font-size: 2.5em;
+            color: #ffa500;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .category-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 40px;
+        }
+        
+        .category-item {
+            display: block;
+            padding: 30px 15px;
+            background: linear-gradient(145deg, #1a1a1a, #252525);
+            color: #ffa500;
+            text-decoration: none;
+            border-radius: 12px;
+            border: 2px solid #333;
+            transition: all 0.3s ease;
+            font-size: 1.2em;
+            font-weight: 500;
+        }
+        
+        .category-item:hover {
+            background: linear-gradient(145deg, #ffa500, #ff8c00);
+            color: #0a0a0a;
+            border-color: #ffa500;
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(255, 165, 0, 0.3);
+        }
+        
+        .no-categories {
+            margin-top: 60px;
+            font-size: 1.2em;
+            color: #888;
+        }
+    </style>
 </head>
 <body>
-<h1>Selecciona una categoría</h1>
-{% for cat in categories %}
-<a href="/{{ cat }}/">{{ cat }}</a>
-{% endfor %}
+    <div class="container">
+        <h1>Selecciona una Categoría</h1>
+        
+        {% if categories %}
+            <div class="category-list">
+                {% for cat in categories %}
+                    <a href="/{{ cat }}/" class="category-item">{{ cat|title }}</a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="no-categories">No se encontraron categorías en /media/lineas</p>
+        {% endif %}
+    </div>
 </body>
 </html>

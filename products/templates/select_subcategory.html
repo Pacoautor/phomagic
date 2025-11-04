@@ -1,17 +1,101 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>Subcategorías de {{ category }}</title>
-<style>
-body { background: #0a0a0a; color: white; text-align: center; font-family: Arial; }
-a { display: block; margin: 15px auto; background: #222; padding: 10px 30px; border-radius: 8px; width: 200px; color: orange; text-decoration: none; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subcategorías de {{ category }}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body { 
+            background-color: #0a0a0a; 
+            color: #fff; 
+            text-align: center; 
+            font-family: 'Segoe UI', Arial, sans-serif;
+            padding: 20px;
+        }
+        
+        h1 {
+            margin: 40px 0;
+            font-size: 2.2em;
+            color: #ffa500;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .subcategory-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-top: 40px;
+        }
+        
+        .subcategory-item {
+            display: block;
+            padding: 25px 15px;
+            background: linear-gradient(145deg, #1a1a1a, #252525);
+            color: #ffa500;
+            text-decoration: none;
+            border-radius: 12px;
+            border: 2px solid #333;
+            transition: all 0.3s ease;
+            font-size: 1.1em;
+        }
+        
+        .subcategory-item:hover {
+            background: linear-gradient(145deg, #ffa500, #ff8c00);
+            color: #0a0a0a;
+            border-color: #ffa500;
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(255, 165, 0, 0.3);
+        }
+        
+        .back-button {
+            display: inline-block;
+            margin-top: 50px;
+            padding: 12px 30px;
+            background: #333;
+            color: #ffa500;
+            text-decoration: none;
+            border-radius: 8px;
+            border: 2px solid #444;
+            transition: all 0.3s ease;
+        }
+        
+        .back-button:hover {
+            background: #444;
+            border-color: #ffa500;
+        }
+        
+        .no-subcategories {
+            margin-top: 60px;
+            font-size: 1.2em;
+            color: #888;
+        }
+    </style>
 </head>
 <body>
-<h1>Subcategorías de {{ category }}</h1>
-{% for sub in subcategories %}
-<a href="/{{ category }}/{{ sub }}/">{{ sub }}</a>
-{% endfor %}
+    <div class="container">
+        <h1>Subcategorías de {{ category|title }}</h1>
+        
+        {% if subcategories %}
+            <div class="subcategory-list">
+                {% for sub in subcategories %}
+                    <a href="/{{ category }}/{{ sub }}/" class="subcategory-item">{{ sub|title }}</a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="no-subcategories">No se encontraron subcategorías.</p>
+        {% endif %}
+        
+        <a href="/" class="back-button">← Volver a Categorías</a>
+    </div>
 </body>
 </html>
