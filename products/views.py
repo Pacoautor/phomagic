@@ -20,39 +20,42 @@ def select_subcategory(request, category):
 
 
 def view_products(request, category, subcategory):
+    # Importante: pasamos subcategory al template correctamente
     views = [
         {"name": "vista1", "image": "/static/img/vista1.png"},
         {"name": "vista2", "image": "/static/img/vista2.png"},
     ]
-    return render(request, "view_products.html", {
+    context = {
         "category": category,
         "subcategory": subcategory,
         "views": views
-    })
+    }
+    return render(request, "view_products.html", context)
 
 
 def upload_photo(request, category, subcategory, view_name):
+    # Página de subida de imagen con feedback visual
     if request.method == "POST" and request.FILES.get("photo"):
         photo = request.FILES["photo"]
 
-        # Simulación de validación básica
+        # Validación de formato de imagen
         if not photo.name.lower().endswith((".jpg", ".jpeg", ".png")):
             return render(request, "upload_photo.html", {
                 "category": category,
                 "subcategory": subcategory,
                 "view_name": view_name,
-                "error": "Formato de archivo no válido. Sube JPG o PNG."
+                "error": "Formato no válido. Sube una imagen JPG o PNG."
             })
 
-        # Aquí se procesaría la imagen con la API de OpenAI
+        # Simulación de imagen procesada (luego irá la API real)
         result_url = "https://via.placeholder.com/512x512?text=Imagen+procesada"
 
         return render(request, "upload_photo.html", {
             "category": category,
             "subcategory": subcategory,
             "view_name": view_name,
-            "result_image": result_url,
-            "success": True
+            "success": True,
+            "result_image": result_url
         })
 
     return render(request, "upload_photo.html", {
