@@ -1,4 +1,4 @@
 Django
-dj-database-url
-whitenoise
 gunicorn
+pillow
+requests
