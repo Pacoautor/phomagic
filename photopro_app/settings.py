@@ -28,7 +28,8 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'phomagic.urls'
+ROOT_URLCONF = 'photopro_app.urls'
+
 
 TEMPLATES = [
     {
