@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -16,7 +17,7 @@
     <div class="container">
         {% for view in views %}
         <div class="view-card">
-            <a href="{% url 'upload_photo' category subcategory view.name %}">
+            <a href="/upload/{{ category }}/{{ subcategory }}/{{ view.name }}/">
                 <img src="{{ view.image }}" alt="{{ view.name }}">
                 <p>{{ view.name }}</p>
             </a>
