@@ -18,8 +18,8 @@ def select_subcategory(request, category):
 
 def view_products(request, category, subcategory):
     views = [
-        {"name": "vista1", "image": "/static/img/vista1.png"},
-        {"name": "vista2", "image": "/static/img/vista2.png"},
+        {"name": "vista1", "image": "/static/images/vista1.png"},
+        {"name": "vista2", "image": "/static/images/vista2.png"},
     ]
     return render(request, "view_products.html", {
         "category": category,
