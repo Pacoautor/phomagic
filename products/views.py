@@ -80,8 +80,15 @@ def upload_photo(request, category, subcategory, view_name):
         try:
             from openai import OpenAI
             
-            api_key = os.getenv('OPENAI_API_KEY')
+            api_key = settings.OPENAI_API_KEY
+            
             if not api_key:
+                # Debug: imprimir todas las variables que empiezan con OPENAI
+                import os
+                all_vars = {k: v[:20] + '...' if len(v) > 20 else v 
+                           for k, v in os.environ.items() if 'OPENAI' in k.upper()}
+                print(f"DEBUG - Variables OPENAI: {all_vars}")
+                
                 return render(request, "upload_photo.html", {
                     "error": "API Key de OpenAI no configurada.",
                     "category": category,
