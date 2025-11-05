@@ -80,16 +80,33 @@ def upload_photo(request, category, subcategory, view_name):
         try:
             from openai import OpenAI
             
-            # Leer directamente de environ
-            api_key = os.environ.get('OPENAI_API_KEY')
+            # Intentar múltiples formas de obtener la API key
+            api_key = None
             
-            # Debug
-            print(f"API Key encontrada: {api_key[:20] if api_key else 'None'}...")
-            print(f"Todas las env vars: {list(os.environ.keys())}")
+            # Método 1: os.environ directo
+            if 'OPENAI_API_KEY' in os.environ:
+                api_key = os.environ['OPENAI_API_KEY']
+                print(f"Método 1 (os.environ): {api_key[:20] if api_key else 'None'}...")
+            
+            # Método 2: os.getenv
+            if not api_key:
+                api_key = os.getenv('OPENAI_API_KEY')
+                print(f"Método 2 (os.getenv): {api_key[:20] if api_key else 'None'}...")
+            
+            # Método 3: settings
+            if not api_key:
+                api_key = getattr(settings, 'OPENAI_API_KEY', None)
+                print(f"Método 3 (settings): {api_key[:20] if api_key else 'None'}...")
+            
+            # Debug: imprimir TODAS las variables que contienen "OPENAI" o "API"
+            env_debug = {k: (v[:20] + '...' if len(v) > 20 else v) 
+                        for k, v in os.environ.items() 
+                        if 'OPENAI' in k.upper() or 'API' in k.upper()}
+            print(f"Variables con OPENAI/API: {env_debug}")
             
             if not api_key:
                 return render(request, "upload_photo.html", {
-                    "error": "API Key no encontrada en variables de entorno.",
+                    "error": f"API Key no encontrada. Variables encontradas: {list(env_debug.keys())}",
                     "category": category,
                     "subcategory": subcategory,
                     "view_name": view_name
