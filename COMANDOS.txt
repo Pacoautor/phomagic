@@ -1,0 +1,23 @@
+# PASO 1: Reemplazar .gitignore
+cp .gitignore .
+
+# PASO 2: Limpiar cache de git
+git rm -r --cached . 2>/dev/null || true
+
+# PASO 3: Verificar que media/lineas existe
+ls -R media/lineas/ | head -20
+
+# PASO 4: Agregar TODO incluyendo media
+git add .
+git add media/
+
+# PASO 5: Verificar que se agregó
+git status | grep media
+
+# PASO 6: Commit y push
+git commit -m "Add all files including media"
+git push
+
+# PASO 7: En Railway después del push
+# Variables -> Click en OPENAI_API_KEY -> Editar -> Copiar la key de nuevo -> Guardar
+# Deployments -> Último -> Redeploy

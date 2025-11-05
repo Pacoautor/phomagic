@@ -1,0 +1,22 @@
+PASO 1:
+cp .gitignore .
+
+PASO 2:
+git rm -r --cached .
+
+PASO 3:
+git add .
+
+PASO 4:
+git add media/lineas/
+
+PASO 5:
+git status
+
+PASO 6 (si ves archivos media/lineas en el status):
+git commit -m "Add media"
+git push
+
+PASO 7 Railway:
+Variables -> OPENAI_API_KEY -> Editar -> Guardar
+Deployments -> Redeploy
