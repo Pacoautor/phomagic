@@ -1,5 +1,1 @@
-<<<<<<< HEAD
-python-3.11.9
-=======
-python-3.12.6
->>>>>>> 54dc87cf5bddeb97076c30df6ac7fe69845bb4d6
+python-3.11.6
