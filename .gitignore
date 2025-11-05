@@ -1,15 +1,8 @@
-﻿
-.env
+﻿.env
 .venv/
 __pycache__/
 *.pyc
 db.sqlite3
-
-# Ignorar media excepto lineas
-media/*
-!media/lineas/
-
-# Ignorar entorno virtual y logs
 venv/
 *.log
 .DS_Store
