@@ -1,2 +1,1 @@
-
-web: gunicorn photopro_app.wsgi --log-file -
+web: bash start.sh
